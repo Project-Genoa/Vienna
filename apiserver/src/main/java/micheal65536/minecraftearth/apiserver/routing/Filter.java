@@ -6,5 +6,5 @@ import org.jetbrains.annotations.Nullable;
 public interface Filter
 {
 	@Nullable
-	Response filter(@NotNull Request request) throws Request.BadRequestException;
+	Response filter(@NotNull Request request) throws Request.BadRequestException, ServerErrorException;
 }
