@@ -9,6 +9,7 @@ import java.util.function.Function;
 
 public final class Request
 {
+	public final long timestamp;
 	@NotNull
 	public final Path path;
 	@NotNull
@@ -17,8 +18,9 @@ public final class Request
 	final HashMap<String, Object> contextData = new HashMap<>();
 	private final String body;
 
-	Request(@NotNull Path path, @NotNull Method method, @NotNull String body)
+	Request(long timestamp, @NotNull Path path, @NotNull Method method, @NotNull String body)
 	{
+		this.timestamp = timestamp;
 		this.path = path;
 		this.method = method;
 		this.body = body;

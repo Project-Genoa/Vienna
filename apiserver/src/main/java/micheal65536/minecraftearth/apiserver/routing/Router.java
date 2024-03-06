@@ -77,10 +77,10 @@ public class Router
 
 	boolean handleRequest(@NotNull HttpServletRequest httpServletRequest, @NotNull HttpServletResponse httpServletResponse)
 	{
-		return this.handleRequest(httpServletRequest, httpServletResponse, null, null, 0);
+		return this.handleRequest(httpServletRequest, httpServletResponse, null, null, 0, System.currentTimeMillis());
 	}
 
-	private boolean handleRequest(@NotNull HttpServletRequest httpServletRequest, @NotNull HttpServletResponse httpServletResponse, @Nullable String requestBody, @Nullable HashMap<String, Object> contextData, int pathStrip)
+	private boolean handleRequest(@NotNull HttpServletRequest httpServletRequest, @NotNull HttpServletResponse httpServletResponse, @Nullable String requestBody, @Nullable HashMap<String, Object> contextData, int pathStrip, long timestamp)
 	{
 		try
 		{
@@ -97,13 +97,13 @@ public class Router
 
 			for (RegisteredHandler handler : this.handlers)
 			{
-				Request handlerRequest = matchRouteAndMakeRequest(httpServletRequest, handler.route, path, requestBody);
+				Request handlerRequest = matchRouteAndMakeRequest(httpServletRequest, handler.route, path, requestBody, timestamp);
 				if (handlerRequest != null)
 				{
 					HashMap<String, Object> collectedContextData = contextData != null ? contextData : new HashMap<>();
 					for (RegisteredFilter filter : this.filters)
 					{
-						Request filterRequest = matchRouteAndMakeRequest(httpServletRequest, filter.route, path, requestBody);
+						Request filterRequest = matchRouteAndMakeRequest(httpServletRequest, filter.route, path, requestBody, timestamp);
 						if (filterRequest != null)
 						{
 							filterRequest.contextData.putAll(collectedContextData);
@@ -131,7 +131,7 @@ public class Router
 					HashMap<String, Object> collectedContextData = contextData != null ? contextData : new HashMap<>();
 					for (RegisteredFilter filter : this.filters)
 					{
-						Request filterRequest = matchRouteAndMakeRequest(httpServletRequest, filter.route, path, requestBody);
+						Request filterRequest = matchRouteAndMakeRequest(httpServletRequest, filter.route, path, requestBody, timestamp);
 						if (filterRequest != null)
 						{
 							filterRequest.contextData.putAll(collectedContextData);
@@ -145,7 +145,7 @@ public class Router
 						}
 					}
 
-					if (subRouter.router.handleRequest(httpServletRequest, httpServletResponse, requestBody, collectedContextData, pathStrip + subRouter.pathStrip))
+					if (subRouter.router.handleRequest(httpServletRequest, httpServletResponse, requestBody, collectedContextData, pathStrip + subRouter.pathStrip, timestamp))
 					{
 						return true;
 					}
@@ -169,7 +169,7 @@ public class Router
 	}
 
 	@Nullable
-	private static Request matchRouteAndMakeRequest(@NotNull HttpServletRequest httpServletRequest, @NotNull Route route, @NotNull Path path, @NotNull String requestBody)
+	private static Request matchRouteAndMakeRequest(@NotNull HttpServletRequest httpServletRequest, @NotNull Route route, @NotNull Path path, @NotNull String requestBody, long timestamp)
 	{
 		Request.Method method = switch (httpServletRequest.getMethod())
 		{
@@ -193,7 +193,7 @@ public class Router
 			return null;
 		}
 
-		Request request = new Request(path, method, requestBody);
+		Request request = new Request(timestamp, path, method, requestBody);
 
 		httpServletRequest.getParameterNames().asIterator().forEachRemaining(name ->
 		{
