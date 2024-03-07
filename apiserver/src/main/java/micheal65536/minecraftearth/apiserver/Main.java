@@ -18,8 +18,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.jetbrains.annotations.NotNull;
 
+import micheal65536.minecraftearth.apiserver.routes.AuthenticatedRouter;
+import micheal65536.minecraftearth.apiserver.routes.SigninRouter;
 import micheal65536.minecraftearth.apiserver.routing.Application;
 import micheal65536.minecraftearth.apiserver.routing.Router;
+import micheal65536.minecraftearth.db.DatabaseException;
+import micheal65536.minecraftearth.db.EarthDB;
 
 import java.io.File;
 import java.io.IOException;
@@ -39,12 +43,20 @@ public class Main
 				.type(Number.class)
 				.desc("Port to listen on, defaults to 8080")
 				.build());
+		options.addOption(Option.builder()
+				.option("db")
+				.hasArg()
+				.argName("db")
+				.desc("Database path, defaults to ./earth.db")
+				.build());
 		CommandLine commandLine;
 		int httpPort;
+		String dbConnectionString;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
 			httpPort = commandLine.hasOption("port") ? (int) (long) commandLine.getParsedOptionValue("port") : 8080;
+			dbConnectionString = commandLine.hasOption("db") ? commandLine.getOptionValue("db") : "./earth.db";
 		}
 		catch (ParseException exception)
 		{
@@ -53,19 +65,37 @@ public class Main
 			return;
 		}
 
-		Application application = buildApplication();
+		Catalog catalog = new Catalog();
+
+		LogManager.getLogger().info("Connecting to database");
+		EarthDB earthDB;
+		try
+		{
+			earthDB = EarthDB.open(dbConnectionString);
+		}
+		catch (DatabaseException exception)
+		{
+			LogManager.getLogger().fatal("Could not connect to database", exception);
+			System.exit(1);
+			return;
+		}
+		LogManager.getLogger().info("Connected to database");
+
+		Application application = buildApplication(earthDB, catalog);
 
 		startServer(httpPort, application);
 	}
 
 	@NotNull
-	private static Application buildApplication()
+	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull Catalog catalog)
 	{
 		Application application = new Application();
 		Router router = new Router();
 		application.router.addSubRouter("/*", 0, router);
 
-		// TODO
+		router.addSubRouter("/auth/api/v1.1/*", 3, new SigninRouter());    // for some reason MCE uses the base path from the previous session when switching users without restarting the app
+		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, catalog));
+		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
 
 		return application;
 	}
