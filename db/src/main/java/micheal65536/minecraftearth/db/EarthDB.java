@@ -153,7 +153,7 @@ public final class EarthDB implements AutoCloseable
 		private final LinkedList<WriteObjectsEntry> writeObjects = new LinkedList<>();
 		private final LinkedList<ReadObjectsEntry> readObjects = new LinkedList<>();
 		private final LinkedList<ExtrasEntry> extras = new LinkedList<>();
-		private Function<Results, Query> thenFunction = null;
+		private LinkedList<Function<Results, Query>> thenFunctions = new LinkedList<>();
 
 		private record WriteObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Object value)
 		{
@@ -200,7 +200,14 @@ public final class EarthDB implements AutoCloseable
 		@NotNull
 		public Query then(@NotNull Function<Results, Query> function)
 		{
-			this.thenFunction = function;
+			this.thenFunctions.add(function);
+			return this;
+		}
+
+		@NotNull
+		public Query then(@NotNull Query query)
+		{
+			this.thenFunctions.add(results -> query);
 			return this;
 		}
 
@@ -296,9 +303,9 @@ public final class EarthDB implements AutoCloseable
 				results.extras.put(entry.name, entry.value);
 			}
 
-			if (this.thenFunction != null)
+			for (Function<Results, Query> function : this.thenFunctions)
 			{
-				Query query = this.thenFunction.apply(results);
+				Query query = function.apply(results);
 				results = query.executeInternal(transaction, write, results.updates);
 			}
 
