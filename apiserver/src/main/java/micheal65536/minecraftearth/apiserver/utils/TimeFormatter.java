@@ -5,10 +5,11 @@ import org.jetbrains.annotations.NotNull;
 import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.time.Instant;
+import java.util.Locale;
 
 public final class TimeFormatter
 {
-	private static final SimpleDateFormat JSON_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+	private static final SimpleDateFormat JSON_DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.ROOT);
 	private static final String JSON_DURATION_FORMAT = "%d:%02d:%02d";
 
 	@NotNull
