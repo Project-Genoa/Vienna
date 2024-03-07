@@ -151,6 +151,7 @@ public final class EarthDB implements AutoCloseable
 		private final boolean write;
 		private final LinkedList<WriteObjectsEntry> writeObjects = new LinkedList<>();
 		private final LinkedList<ReadObjectsEntry> readObjects = new LinkedList<>();
+		private final LinkedList<ExtrasEntry> extras = new LinkedList<>();
 		private Function<Results, Query> thenFunction = null;
 
 		private record WriteObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Object value)
@@ -158,6 +159,10 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		private record ReadObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Class<?> valueClass, @NotNull String asName)
+		{
+		}
+
+		private record ExtrasEntry(@NotNull String name, @NotNull Object value)
 		{
 		}
 
@@ -188,6 +193,13 @@ public final class EarthDB implements AutoCloseable
 		public <T> Query get(@NotNull String type, @NotNull String id, @NotNull Class<T> valueClass, @NotNull String as)
 		{
 			this.readObjects.add(new ReadObjectsEntry(type, id, valueClass, as));
+			return this;
+		}
+
+		@NotNull
+		public <T> Query extra(@NotNull String name, @NotNull T value)
+		{
+			this.extras.add(new ExtrasEntry(name, value));
 			return this;
 		}
 
@@ -264,6 +276,10 @@ public final class EarthDB implements AutoCloseable
 					}
 				}
 			}
+			for (ExtrasEntry entry : this.extras)
+			{
+				results.extrasMap.put(entry.name, entry.value);
+			}
 
 			if (this.thenFunction != null)
 			{
@@ -278,6 +294,7 @@ public final class EarthDB implements AutoCloseable
 	public static class Results
 	{
 		private final HashMap<String, Result<?>> map = new HashMap<>();
+		private final HashMap<String, Object> extrasMap = new HashMap<>();
 
 		private Results()
 		{
@@ -288,6 +305,17 @@ public final class EarthDB implements AutoCloseable
 		public <T> Result<T> get(@NotNull String name)
 		{
 			Result<T> value = (Result<T>) this.map.getOrDefault(name, null);
+			if (value == null)
+			{
+				throw new NoSuchElementException();
+			}
+			return value;
+		}
+
+		@NotNull
+		public <T> T getExtra(@NotNull String name)
+		{
+			T value = (T) this.extrasMap.getOrDefault(name, null);
 			if (value == null)
 			{
 				throw new NoSuchElementException();
