@@ -2,6 +2,7 @@ package micheal65536.minecraftearth.db;
 
 import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.sql.Connection;
@@ -158,7 +159,7 @@ public final class EarthDB implements AutoCloseable
 		{
 		}
 
-		private record ReadObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Class<?> valueClass, @NotNull String asName)
+		private record ReadObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Class<?> valueClass)
 		{
 		}
 
@@ -185,14 +186,7 @@ public final class EarthDB implements AutoCloseable
 		@NotNull
 		public <T> Query get(@NotNull String type, @NotNull String id, @NotNull Class<T> valueClass)
 		{
-			this.get(type, id, valueClass, type);
-			return this;
-		}
-
-		@NotNull
-		public <T> Query get(@NotNull String type, @NotNull String id, @NotNull Class<T> valueClass, @NotNull String as)
-		{
-			this.readObjects.add(new ReadObjectsEntry(type, id, valueClass, as));
+			this.readObjects.add(new ReadObjectsEntry(type, id, valueClass));
 			return this;
 		}
 
@@ -215,7 +209,7 @@ public final class EarthDB implements AutoCloseable
 		{
 			try (Transaction transaction = earthDB.transaction(this.write))
 			{
-				Results results = this.executeInternal(transaction, this.write);
+				Results results = this.executeInternal(transaction, this.write, null);
 				transaction.commit();
 				return results;
 			}
@@ -226,11 +220,17 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		@NotNull
-		private Results executeInternal(@NotNull Transaction transaction, boolean write) throws DatabaseException, SQLException
+		private Results executeInternal(@NotNull Transaction transaction, boolean write, @Nullable HashMap<String, Integer> parentUpdates) throws DatabaseException, SQLException
 		{
 			if (this.write && !write)
 			{
 				throw new UnsupportedOperationException();
+			}
+
+			Results results = new Results();
+			if (parentUpdates != null)
+			{
+				results.updates.putAll(parentUpdates);
 			}
 
 			for (WriteObjectsEntry entry : this.writeObjects)
@@ -243,9 +243,23 @@ public final class EarthDB implements AutoCloseable
 				statement.setString(4, entry.type);
 				statement.setString(5, entry.id);
 				statement.execute();
+
+				statement = transaction.connection.prepareStatement("SELECT version FROM objects WHERE type == ? AND id == ?");
+				statement.setString(1, entry.type);
+				statement.setString(2, entry.id);
+				statement.execute();
+				ResultSet resultSet = statement.getResultSet();
+				if (resultSet.next())
+				{
+					int version = resultSet.getInt("version");
+					results.updates.put(entry.type, version);
+				}
+				else
+				{
+					throw new DatabaseException("Could not query updated object");
+				}
 			}
 
-			Results results = new Results();
 			for (ReadObjectsEntry entry : this.readObjects)
 			{
 				try (PreparedStatement statement = transaction.connection.prepareStatement("SELECT value, version FROM objects WHERE type == ? AND id == ?"))
@@ -259,7 +273,7 @@ public final class EarthDB implements AutoCloseable
 						String json = resultSet.getString("value");
 						int version = resultSet.getInt("version");
 						Object value = new Gson().fromJson(json, entry.valueClass);
-						results.map.put(entry.asName, new Results.Result<>(value, version));
+						results.getValues.put(entry.type, new Results.Result<>(value, version));
 					}
 					else
 					{
@@ -267,7 +281,7 @@ public final class EarthDB implements AutoCloseable
 						{
 							Constructor constructor = entry.valueClass.getDeclaredConstructor();
 							Object value = constructor.newInstance();
-							results.map.put(entry.asName, new Results.Result<>(value, 1));
+							results.getValues.put(entry.type, new Results.Result<>(value, 1));
 						}
 						catch (ReflectiveOperationException exception)
 						{
@@ -276,15 +290,16 @@ public final class EarthDB implements AutoCloseable
 					}
 				}
 			}
+
 			for (ExtrasEntry entry : this.extras)
 			{
-				results.extrasMap.put(entry.name, entry.value);
+				results.extras.put(entry.name, entry.value);
 			}
 
 			if (this.thenFunction != null)
 			{
 				Query query = this.thenFunction.apply(results);
-				results = query.executeInternal(transaction, write);
+				results = query.executeInternal(transaction, write, results.updates);
 			}
 
 			return results;
@@ -293,8 +308,9 @@ public final class EarthDB implements AutoCloseable
 
 	public static class Results
 	{
-		private final HashMap<String, Result<?>> map = new HashMap<>();
-		private final HashMap<String, Object> extrasMap = new HashMap<>();
+		private final HashMap<String, Result<?>> getValues = new HashMap<>();
+		private final HashMap<String, Object> extras = new HashMap<>();
+		private final HashMap<String, Integer> updates = new HashMap<>();
 
 		private Results()
 		{
@@ -304,7 +320,7 @@ public final class EarthDB implements AutoCloseable
 		@NotNull
 		public <T> Result<T> get(@NotNull String name)
 		{
-			Result<T> value = (Result<T>) this.map.getOrDefault(name, null);
+			Result<T> value = (Result<T>) this.getValues.getOrDefault(name, null);
 			if (value == null)
 			{
 				throw new NoSuchElementException();
@@ -313,9 +329,15 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		@NotNull
+		public HashMap<String, Integer> getUpdates()
+		{
+			return new HashMap<>(this.updates);
+		}
+
+		@NotNull
 		public <T> T getExtra(@NotNull String name)
 		{
-			T value = (T) this.extrasMap.getOrDefault(name, null);
+			T value = (T) this.extras.getOrDefault(name, null);
 			if (value == null)
 			{
 				throw new NoSuchElementException();

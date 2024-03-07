@@ -198,9 +198,7 @@ public class WorkshopRouter extends Router
 						.get("hotbar", playerId, Hotbar.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class);
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
@@ -209,7 +207,7 @@ public class WorkshopRouter extends Router
 
 							if (craftingSlot.locked || craftingSlot.activeJob != null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							LinkedList<InputItem> inputItems = new LinkedList<>();
@@ -219,7 +217,7 @@ public class WorkshopRouter extends Router
 								{
 									if (!inventory.takeItems(item.itemId, item.quantity))
 									{
-										return rejectedQuery;
+										return query;
 									}
 									inputItems.add(new InputItem(item.itemId, item.quantity, new NonStackableItemInstance[0]));
 								}
@@ -228,7 +226,7 @@ public class WorkshopRouter extends Router
 									NonStackableItemInstance[] instances = inventory.takeItems(item.itemId, item.itemInstanceIds);
 									if (instances == null)
 									{
-										return rejectedQuery;
+										return query;
 									}
 									inputItems.add(new InputItem(item.itemId, item.quantity, instances));
 								}
@@ -237,15 +235,12 @@ public class WorkshopRouter extends Router
 
 							craftingSlot.activeJob = new CraftingSlot.ActiveJob(startRequest.sessionId, recipe.id(), request.timestamp, inputItems.toArray(InputItem[]::new), startRequest.multiplier, 0, false);
 
-							return new EarthDB.Query(true)
-									.update("crafting", playerId, craftingSlots)
-									.update("inventory", playerId, inventory)
-									.update("hotbar", playerId, hotbar)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class);
+							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("hotbar", playerId, hotbar);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results, "crafting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -318,9 +313,7 @@ public class WorkshopRouter extends Router
 						.get("hotbar", playerId, Hotbar.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class);
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
@@ -329,7 +322,7 @@ public class WorkshopRouter extends Router
 
 							if (smeltingSlot.locked || smeltingSlot.activeJob != null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							InputItem input;
@@ -337,7 +330,7 @@ public class WorkshopRouter extends Router
 							{
 								if (!inventory.takeItems(startRequest.input.itemId, startRequest.input.quantity))
 								{
-									return rejectedQuery;
+									return query;
 								}
 								input = new InputItem(startRequest.input.itemId, startRequest.input.quantity, new NonStackableItemInstance[0]);
 							}
@@ -346,7 +339,7 @@ public class WorkshopRouter extends Router
 								NonStackableItemInstance[] instances = inventory.takeItems(startRequest.input.itemId, startRequest.input.itemInstanceIds);
 								if (instances == null)
 								{
-									return rejectedQuery;
+									return query;
 								}
 								input = new InputItem(startRequest.input.itemId, startRequest.input.quantity, instances);
 							}
@@ -357,12 +350,12 @@ public class WorkshopRouter extends Router
 							{
 								if (requiredFuelHeat <= 0)
 								{
-									return rejectedQuery;
+									return query;
 								}
 								BurnRate burnRate = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item -> item.id().equals(startRequest.fuel.itemId)).findFirst().map(ItemsCatalog.Item::burnRate).orElse(null);
 								if (burnRate == null)
 								{
-									return rejectedQuery;
+									return query;
 								}
 								int requiredFuelCount = 0;
 								while (requiredFuelHeat > 0)
@@ -372,14 +365,14 @@ public class WorkshopRouter extends Router
 								}
 								if (startRequest.fuel.quantity < requiredFuelCount)
 								{
-									return rejectedQuery;
+									return query;
 								}
 								InputItem fuelItem;
 								if (startRequest.fuel.itemInstanceIds == null || startRequest.fuel.itemInstanceIds.length == 0)
 								{
 									if (!inventory.takeItems(startRequest.fuel.itemId, startRequest.fuel.quantity))
 									{
-										return rejectedQuery;
+										return query;
 									}
 									fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, new NonStackableItemInstance[0]);
 								}
@@ -388,7 +381,7 @@ public class WorkshopRouter extends Router
 									NonStackableItemInstance[] instances = inventory.takeItems(startRequest.fuel.itemId, startRequest.fuel.itemInstanceIds);
 									if (instances == null)
 									{
-										return rejectedQuery;
+										return query;
 									}
 									fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, instances);
 								}
@@ -398,7 +391,7 @@ public class WorkshopRouter extends Router
 							{
 								if (requiredFuelHeat > 0)
 								{
-									return rejectedQuery;
+									return query;
 								}
 								fuel = null;
 							}
@@ -407,15 +400,12 @@ public class WorkshopRouter extends Router
 
 							smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(startRequest.sessionId, recipe.id(), request.timestamp, input, fuel, startRequest.multiplier, 0, false);
 
-							return new EarthDB.Query(true)
-									.update("smelting", playerId, smeltingSlots)
-									.update("inventory", playerId, inventory)
-									.update("hotbar", playerId, hotbar)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class);
+							query.update("smelting", playerId, smeltingSlots).update("inventory", playerId, inventory).update("hotbar", playerId, hotbar);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results, "smelting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -440,11 +430,7 @@ public class WorkshopRouter extends Router
 						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class)
-									.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
@@ -453,7 +439,8 @@ public class WorkshopRouter extends Router
 
 							if (craftingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								query.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+								return query;
 							}
 							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
 
@@ -482,17 +469,13 @@ public class WorkshopRouter extends Router
 								craftingSlot.activeJob = new CraftingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
 							}
 
-							return new EarthDB.Query(true)
-									.update("crafting", playerId, craftingSlots)
-									.update("inventory", playerId, inventory)
-									.update("journal", playerId, journal)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class)
-									.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							query.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results, "crafting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -516,11 +499,7 @@ public class WorkshopRouter extends Router
 						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class)
-									.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
@@ -530,7 +509,8 @@ public class WorkshopRouter extends Router
 
 							if (smeltingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								query.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+								return query;
 							}
 							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
 
@@ -570,17 +550,13 @@ public class WorkshopRouter extends Router
 								smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.addedFuel(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
 							}
 
-							return new EarthDB.Query(true)
-									.update("smelting", playerId, smeltingSlots)
-									.update("inventory", playerId, inventory)
-									.update("journal", playerId, journal)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class)
-									.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							query.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
+							query.update("smelting", playerId, smeltingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results, "smelting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -605,10 +581,8 @@ public class WorkshopRouter extends Router
 						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class);
+							EarthDB.Query query = new EarthDB.Query(true);
+							query.get("crafting", playerId, CraftingSlots.class);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
@@ -617,7 +591,7 @@ public class WorkshopRouter extends Router
 
 							if (craftingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
 
@@ -651,17 +625,13 @@ public class WorkshopRouter extends Router
 
 							craftingSlot.activeJob = null;
 
-							return new EarthDB.Query(true)
-									.update("crafting", playerId, craftingSlots)
-									.update("inventory", playerId, inventory)
-									.update("journal", playerId, journal)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class);
+							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+
+							return query;
 						})
 						.execute(earthDB);
 				EarthDB.Results.Result<CraftingSlots> craftingSlotsResult = results.get("crafting");
-				return Response.okFromJson(new EarthApiResponse<>(craftingSlotModelToResponse(craftingSlotsResult.value().slots[slotIndex - 1], request.timestamp, craftingSlotsResult.version()), new EarthApiResponse.Updates(results, "crafting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(craftingSlotModelToResponse(craftingSlotsResult.value().slots[slotIndex - 1], request.timestamp, craftingSlotsResult.version()), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -685,10 +655,8 @@ public class WorkshopRouter extends Router
 						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class);
+							EarthDB.Query query = new EarthDB.Query(true);
+							query.get("smelting", playerId, SmeltingSlots.class);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
@@ -697,7 +665,7 @@ public class WorkshopRouter extends Router
 
 							if (smeltingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
 
@@ -752,17 +720,13 @@ public class WorkshopRouter extends Router
 								smeltingSlot.burning = null;
 							}
 
-							return new EarthDB.Query(true)
-									.update("smelting", playerId, smeltingSlots)
-									.update("inventory", playerId, inventory)
-									.update("journal", playerId, journal)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("inventory", playerId, Inventory.class)
-									.get("journal", playerId, Journal.class);
+							query.update("smelting", playerId, smeltingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+
+							return query;
 						})
 						.execute(earthDB);
 				EarthDB.Results.Result<SmeltingSlots> smeltingSlotsResult = results.get("smelting");
-				return Response.okFromJson(new EarthApiResponse<>(smeltingSlotModelToResponse(smeltingSlotsResult.value().slots[slotIndex - 1], request.timestamp, smeltingSlotsResult.version()), new EarthApiResponse.Updates(results, "smelting", "inventory")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(smeltingSlotModelToResponse(smeltingSlotsResult.value().slots[slotIndex - 1], request.timestamp, smeltingSlotsResult.version()), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -791,9 +755,8 @@ public class WorkshopRouter extends Router
 						.get("rubies", playerId, Rubies.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("rubies", playerId, Rubies.class);
+							EarthDB.Query query = new EarthDB.Query(true);
+							query.get("rubies", playerId, Rubies.class);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
@@ -801,41 +764,39 @@ public class WorkshopRouter extends Router
 
 							if (craftingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
 							if (state.completed())
 							{
-								return rejectedQuery;
+								return query;
 							}
 							int remainingTime = (int) (state.totalCompletionTime() - request.timestamp);
 							if (remainingTime < 0)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							CraftingCalculator.FinishPrice finishPrice = CraftingCalculator.calculateFinishPrice(remainingTime);
 
 							if (expectedPurchasePrice.expectedPurchasePrice() < finishPrice.price())
 							{
-								return rejectedQuery;
+								return query;
 							}
 							if (!rubies.spend(finishPrice.price()))
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							CraftingSlot.ActiveJob activeJob = craftingSlot.activeJob;
 							craftingSlot.activeJob = new CraftingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.totalRounds(), activeJob.collectedRounds(), true);
 
-							return new EarthDB.Query(true)
-									.update("crafting", playerId, craftingSlots)
-									.update("rubies", playerId, rubies)
-									.get("crafting", playerId, CraftingSlots.class)
-									.get("rubies", playerId, Rubies.class);
+							query.update("crafting", playerId, craftingSlots).update("rubies", playerId, rubies);
+
+							return query;
 						})
 						.execute(earthDB);
 				Rubies rubies = (Rubies) results.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results, "crafting")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -863,9 +824,8 @@ public class WorkshopRouter extends Router
 						.get("rubies", playerId, Rubies.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("rubies", playerId, Rubies.class);
+							EarthDB.Query query = new EarthDB.Query(true);
+							query.get("rubies", playerId, Rubies.class);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
@@ -873,41 +833,39 @@ public class WorkshopRouter extends Router
 
 							if (smeltingSlot.activeJob == null)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
 							if (state.completed())
 							{
-								return rejectedQuery;
+								return query;
 							}
 							int remainingTime = (int) (state.totalCompletionTime() - request.timestamp);
 							if (remainingTime < 0)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							SmeltingCalculator.FinishPrice finishPrice = SmeltingCalculator.calculateFinishPrice(remainingTime);
 
 							if (expectedPurchasePrice.expectedPurchasePrice() < finishPrice.price())
 							{
-								return rejectedQuery;
+								return query;
 							}
 							if (!rubies.spend(finishPrice.price()))
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							SmeltingSlot.ActiveJob activeJob = smeltingSlot.activeJob;
 							smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.addedFuel(), activeJob.totalRounds(), activeJob.collectedRounds(), true);
 
-							return new EarthDB.Query(true)
-									.update("smelting", playerId, smeltingSlots)
-									.update("rubies", playerId, rubies)
-									.get("smelting", playerId, SmeltingSlots.class)
-									.get("rubies", playerId, Rubies.class);
+							query.update("smelting", playerId, smeltingSlots).update("rubies", playerId, rubies);
+
+							return query;
 						})
 						.execute(earthDB);
 				Rubies rubies = (Rubies) results.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results, "smelting")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -977,8 +935,7 @@ public class WorkshopRouter extends Router
 						.get("rubies", playerId, Rubies.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("crafting", playerId, CraftingSlots.class);
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
@@ -986,28 +943,27 @@ public class WorkshopRouter extends Router
 
 							if (!craftingSlot.locked)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							int unlockPrice = CraftingCalculator.calculateUnlockPrice(slotIndex);
 
 							if (expectedPurchasePrice.expectedPurchasePrice() != unlockPrice)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							if (!rubies.spend(unlockPrice))
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							craftingSlot.locked = false;
 
-							return new EarthDB.Query(true)
-									.update("crafting", playerId, craftingSlots)
-									.update("rubies", playerId, rubies)
-									.get("crafting", playerId, CraftingSlots.class);
+							query.update("crafting", playerId, craftingSlots).update("rubies", playerId, rubies);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results, "crafting")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -1035,8 +991,7 @@ public class WorkshopRouter extends Router
 						.get("rubies", playerId, Rubies.class)
 						.then(results1 ->
 						{
-							EarthDB.Query rejectedQuery = new EarthDB.Query(false)
-									.get("smelting", playerId, SmeltingSlots.class);
+							EarthDB.Query query = new EarthDB.Query(true);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
@@ -1044,28 +999,27 @@ public class WorkshopRouter extends Router
 
 							if (!smeltingSlot.locked)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							int unlockPrice = SmeltingCalculator.calculateUnlockPrice(slotIndex);
 
 							if (expectedPurchasePrice.expectedPurchasePrice() != unlockPrice)
 							{
-								return rejectedQuery;
+								return query;
 							}
 							if (!rubies.spend(unlockPrice))
 							{
-								return rejectedQuery;
+								return query;
 							}
 
 							smeltingSlot.locked = false;
 
-							return new EarthDB.Query(true)
-									.update("smelting", playerId, smeltingSlots)
-									.update("rubies", playerId, rubies)
-									.get("smelting", playerId, SmeltingSlots.class);
+							query.update("smelting", playerId, smeltingSlots).update("rubies", playerId, rubies);
+
+							return query;
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results, "smelting")), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new HashMap<>(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
