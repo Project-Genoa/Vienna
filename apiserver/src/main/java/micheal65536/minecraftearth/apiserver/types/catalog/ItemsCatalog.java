@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import micheal65536.minecraftearth.apiserver.types.common.BurnRate;
+import micheal65536.minecraftearth.apiserver.types.common.Rarity;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,7 +18,7 @@ public record ItemsCatalog(
 			@NotNull String id,
 			@NotNull ItemData item,
 			@NotNull String category,
-			@NotNull String rarity,
+			@NotNull Rarity rarity,
 			int fragmentsRequired,
 			boolean stacks,
 			@Nullable BurnRate burnRate,

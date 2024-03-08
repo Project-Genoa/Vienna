@@ -22,11 +22,13 @@ public record Rewards(
 	}
 
 	public record Buildplate(
+			@NotNull String id
 	)
 	{
 	}
 
 	public record Challenge(
+			@NotNull String id
 	)
 	{
 	}

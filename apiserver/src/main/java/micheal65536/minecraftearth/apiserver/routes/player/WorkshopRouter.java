@@ -12,7 +12,6 @@ import micheal65536.minecraftearth.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.minecraftearth.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.minecraftearth.apiserver.types.common.BurnRate;
 import micheal65536.minecraftearth.apiserver.types.common.ExpectedPurchasePrice;
-import micheal65536.minecraftearth.apiserver.types.common.Rewards;
 import micheal65536.minecraftearth.apiserver.types.common.SplitRubies;
 import micheal65536.minecraftearth.apiserver.types.workshop.FinishPrice;
 import micheal65536.minecraftearth.apiserver.types.workshop.OutputItem;
@@ -21,6 +20,7 @@ import micheal65536.minecraftearth.apiserver.types.workshop.UnlockPrice;
 import micheal65536.minecraftearth.apiserver.utils.CraftingCalculator;
 import micheal65536.minecraftearth.apiserver.utils.EarthApiResponse;
 import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
+import micheal65536.minecraftearth.apiserver.utils.Rewards;
 import micheal65536.minecraftearth.apiserver.utils.SmeltingCalculator;
 import micheal65536.minecraftearth.apiserver.utils.TimeFormatter;
 import micheal65536.minecraftearth.db.DatabaseException;
@@ -426,56 +426,37 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("crafting", playerId, CraftingSlots.class)
-						.get("inventory", playerId, Inventory.class)
-						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query query = new EarthDB.Query(true);
-
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
-							Inventory inventory = (Inventory) results1.get("inventory").value();
-							Journal journal = (Journal) results1.get("journal").value();
 
-							if (craftingSlot.activeJob == null)
+							Rewards rewards = new Rewards();
+							if (craftingSlot.activeJob != null)
 							{
-								query.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
-								return query;
-							}
-							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
+								CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
 
-							int quantity = state.availableRounds() * state.output().count();
-							if (quantity > 0)
-							{
-								ItemsCatalog.Item item = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item1 -> item1.id().equals(state.output().id())).findFirst().orElseThrow();
-								if (item.stacks())
+								int quantity = state.availableRounds() * state.output().count();
+								if (quantity > 0)
 								{
-									inventory.addItems(item.id(), quantity);
+									rewards.addItem(state.output().id(), quantity);
+								}
+
+								if (state.completed())
+								{
+									craftingSlot.activeJob = null;
 								}
 								else
 								{
-									inventory.addItems(item.id(), IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 100.0f)).toArray(NonStackableItemInstance[]::new));
+									CraftingSlot.ActiveJob activeJob = craftingSlot.activeJob;
+									craftingSlot.activeJob = new CraftingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
 								}
-								journal.touchItem(state.output().id(), request.timestamp);
 							}
 
-							if (state.completed())
-							{
-								craftingSlot.activeJob = null;
-							}
-							else
-							{
-								CraftingSlot.ActiveJob activeJob = craftingSlot.activeJob;
-								craftingSlot.activeJob = new CraftingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
-							}
-
-							query.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
-							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
-
-							return query;
+							return new EarthDB.Query(true).update("crafting", playerId, craftingSlots).then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -495,68 +476,48 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("smelting", playerId, SmeltingSlots.class)
-						.get("inventory", playerId, Inventory.class)
-						.get("journal", playerId, Journal.class)
 						.then(results1 ->
 						{
-							EarthDB.Query query = new EarthDB.Query(true);
-
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
-							;
-							Inventory inventory = (Inventory) results1.get("inventory").value();
-							Journal journal = (Journal) results1.get("journal").value();
 
-							if (smeltingSlot.activeJob == null)
+							Rewards rewards = new Rewards();
+							if (smeltingSlot.activeJob != null)
 							{
-								query.extra("rewards", new Rewards(0, 0, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
-								return query;
-							}
-							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
+								SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
 
-							int quantity = state.availableRounds() * state.output().count();
-							if (quantity > 0)
-							{
-								ItemsCatalog.Item item = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item1 -> item1.id().equals(state.output().id())).findFirst().orElseThrow();
-								if (item.stacks())
+								int quantity = state.availableRounds() * state.output().count();
+								if (quantity > 0)
 								{
-									inventory.addItems(item.id(), quantity);
+									rewards.addItem(state.output().id(), quantity);
+								}
+
+								if (state.completed())
+								{
+									smeltingSlot.activeJob = null;
+									if (state.remainingHeat() > 0)
+									{
+										smeltingSlot.burning = new SmeltingSlot.Burning(
+												state.currentBurningFuel(),
+												state.remainingHeat()
+										);
+									}
+									else
+									{
+										smeltingSlot.burning = null;
+									}
 								}
 								else
 								{
-									inventory.addItems(item.id(), IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 100.0f)).toArray(NonStackableItemInstance[]::new));
-								}
-								journal.touchItem(state.output().id(), request.timestamp);
-							}
-
-							if (state.completed())
-							{
-								smeltingSlot.activeJob = null;
-								if (state.remainingHeat() > 0)
-								{
-									smeltingSlot.burning = new SmeltingSlot.Burning(
-											state.currentBurningFuel(),
-											state.remainingHeat()
-									);
-								}
-								else
-								{
-									smeltingSlot.burning = null;
+									SmeltingSlot.ActiveJob activeJob = smeltingSlot.activeJob;
+									smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.addedFuel(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
 								}
 							}
-							else
-							{
-								SmeltingSlot.ActiveJob activeJob = smeltingSlot.activeJob;
-								smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.addedFuel(), activeJob.totalRounds(), activeJob.collectedRounds() + state.availableRounds(), activeJob.finishedEarly());
-							}
 
-							query.extra("rewards", new Rewards(0, 0, new Rewards.Item[]{new Rewards.Item(state.output().id(), quantity)}, new Rewards.Buildplate[0], new Rewards.Challenge[0], new Rewards.PersonaItem[0], new Rewards.UtilityBlock[0]));
-							query.update("smelting", playerId, smeltingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
-
-							return query;
+							return new EarthDB.Query(true).update("smelting", playerId, smeltingSlots).then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
 						})
 						.execute(earthDB);
-				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", results.getExtra("rewards")).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
+				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
