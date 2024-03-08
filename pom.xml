@@ -10,6 +10,7 @@
     <packaging>pom</packaging>
     <modules>
         <module>apiserver</module>
+        <module>tappablesgenerator</module>
         <module>db</module>
         <module>eventbus/server</module>
         <module>eventbus/client</module>

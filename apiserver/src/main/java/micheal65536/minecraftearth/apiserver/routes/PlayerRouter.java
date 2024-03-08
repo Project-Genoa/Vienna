@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 
 import micheal65536.minecraftearth.apiserver.Catalog;
 import micheal65536.minecraftearth.apiserver.routes.player.InventoryRouter;
+import micheal65536.minecraftearth.apiserver.routes.player.TappablesRouter;
 import micheal65536.minecraftearth.apiserver.routes.player.WorkshopRouter;
 import micheal65536.minecraftearth.apiserver.routing.Request;
 import micheal65536.minecraftearth.apiserver.routing.Response;
@@ -70,5 +71,6 @@ public class PlayerRouter extends Router
 
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
+		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, catalog));
 	}
 }
