@@ -16,10 +16,12 @@ import java.util.UUID;
 public class Generator
 {
 	// TODO: make these configurable
-	private static final int MIN_COUNT = 3;
-	private static final int MAX_COUNT = 5;
+	private static final int MIN_COUNT = 1;
+	private static final int MAX_COUNT = 3;
 	private static final long MIN_DURATION = 2 * 60 * 1000;
 	private static final long MAX_DURATION = 5 * 60 * 1000;
+	private static final long MIN_DELAY = 1 * 60 * 1000;
+	private static final long MAX_DELAY = 2 * 60 * 1000;
 
 	private record TappableConfig(
 			@NotNull String tappableID,
@@ -108,7 +110,7 @@ public class Generator
 
 	public long getMaxTappableLifetime()
 	{
-		return MAX_DURATION + 30 * 1000;
+		return MAX_DELAY + MAX_DURATION + 30 * 1000;
 	}
 
 	@NotNull
@@ -117,6 +119,7 @@ public class Generator
 		LinkedList<Tappable> tappables = new LinkedList<>();
 		for (int count = this.random.nextInt(MIN_COUNT, MAX_COUNT + 1); count > 0; count--)
 		{
+			long spawnDelay = this.random.nextLong(MIN_DELAY, MAX_DELAY + 1);
 			long duration = this.random.nextLong(MIN_DURATION, MAX_DURATION + 1);
 
 			float configPos = this.random.nextFloat(0.0f, this.totalWeight);
@@ -155,7 +158,7 @@ public class Generator
 					UUID.randomUUID().toString(),
 					lat,
 					lon,
-					currentTime,
+					currentTime + spawnDelay,
 					duration,
 					tappableConfig.tappableID,
 					Tappable.Rarity.valueOf(tappableConfig.rarity.name()),
