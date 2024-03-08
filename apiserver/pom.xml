@@ -56,6 +56,11 @@
             <artifactId>db</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
+        <dependency>
+            <groupId>micheal65536.minecraftearth</groupId>
+            <artifactId>eventbus-client</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
 
         <dependency>
             <groupId>com.google.code.gson</groupId>

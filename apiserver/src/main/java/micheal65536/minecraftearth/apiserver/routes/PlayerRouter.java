@@ -15,12 +15,13 @@ import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
 import micheal65536.minecraftearth.db.DatabaseException;
 import micheal65536.minecraftearth.db.EarthDB;
 import micheal65536.minecraftearth.db.model.player.Rubies;
+import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 
 import java.util.HashMap;
 
 public class PlayerRouter extends Router
 {
-	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull Catalog catalog)
+	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull Catalog catalog)
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/rubies").build(), request ->
 		{

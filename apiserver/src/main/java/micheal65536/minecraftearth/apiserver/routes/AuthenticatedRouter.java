@@ -8,10 +8,11 @@ import micheal65536.minecraftearth.apiserver.routing.Request;
 import micheal65536.minecraftearth.apiserver.routing.Response;
 import micheal65536.minecraftearth.apiserver.routing.Router;
 import micheal65536.minecraftearth.db.EarthDB;
+import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 
 public class AuthenticatedRouter extends Router
 {
-	public AuthenticatedRouter(@NotNull EarthDB earthDB, @NotNull Catalog catalog)
+	public AuthenticatedRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull Catalog catalog)
 	{
 		Filter authFilter = request ->
 		{
@@ -43,7 +44,7 @@ public class AuthenticatedRouter extends Router
 				authFilter
 		);
 
-		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, catalog));
+		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, eventBusClient, catalog));
 		this.addSubRouter("/*", 0, new CatalogRouter(catalog));
 		this.addSubRouter("/*", 0, new EnvironmentSettingsRouter());
 	}

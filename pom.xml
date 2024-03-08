@@ -11,5 +11,7 @@
     <modules>
         <module>apiserver</module>
         <module>db</module>
+        <module>eventbus/server</module>
+        <module>eventbus/client</module>
     </modules>
 </project>
