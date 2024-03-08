@@ -60,7 +60,9 @@ public class Spawner
 		this.spawnCycleTime += SPAWN_INTERVAL;
 		this.spawnCycleIndex++;
 
-		for (ActiveTiles.ActiveTile activeTile : this.activeTiles.getActiveTiles(this.spawnCycleTime))
+		ActiveTiles.ActiveTile[] activeTiles = this.activeTiles.getActiveTiles(this.spawnCycleTime);
+		LogManager.getLogger().info("Spawning tappables for {} tiles", activeTiles.length);
+		for (ActiveTiles.ActiveTile activeTile : activeTiles)
 		{
 			int lastSpawnCycle = this.lastSpawnCycleForTile.getOrDefault((activeTile.tileX() << 16) + activeTile.tileY(), 0);
 			int cyclesToSpawn = Math.min(this.spawnCycleIndex - lastSpawnCycle, this.maxTappableLifetimeIntervals);

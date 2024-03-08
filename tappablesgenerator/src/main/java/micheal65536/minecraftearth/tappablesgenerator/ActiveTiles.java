@@ -8,6 +8,8 @@ import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 import micheal65536.minecraftearth.eventbus.client.Subscriber;
 
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
 
 public class ActiveTiles
 {
@@ -76,6 +78,7 @@ public class ActiveTiles
 		ActiveTile activeTile = this.activeTiles.getOrDefault((tileX << 16) + tileY, null);
 		if (activeTile == null)
 		{
+			LogManager.getLogger().info("Tile {},{} is becoming active", tileX, tileY);
 			activeTile = new ActiveTile(tileX, tileY, currentTime, currentTime);
 		}
 		else
@@ -87,7 +90,15 @@ public class ActiveTiles
 
 	private void pruneActiveTiles(long currentTime)
 	{
-		this.activeTiles.entrySet().removeIf(entry -> entry.getValue().latestActiveTime + ACTIVE_TILE_EXPIRY_TIME <= currentTime);
+		for (Iterator<Map.Entry<Integer, ActiveTile>> iterator = this.activeTiles.entrySet().iterator(); iterator.hasNext(); )
+		{
+			Map.Entry<Integer, ActiveTile> entry = iterator.next();
+			if (entry.getValue().latestActiveTime + ACTIVE_TILE_EXPIRY_TIME <= currentTime)
+			{
+				LogManager.getLogger().info("Tile {},{} is inactive", entry.getValue().tileX, entry.getValue().tileY);
+				iterator.remove();
+			}
+		}
 	}
 
 	public record ActiveTile(
