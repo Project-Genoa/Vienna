@@ -28,9 +28,20 @@ public final class EarthDB implements AutoCloseable
 	private final String connectionString;
 	private final LinkedHashSet<Transaction> transactions = new LinkedHashSet<>();
 
-	private EarthDB(@NotNull String connectionString)
+	private EarthDB(@NotNull String connectionString) throws DatabaseException
 	{
 		this.connectionString = connectionString;
+
+		try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + this.connectionString))
+		{
+			Statement statement = connection.createStatement();
+			statement.execute("CREATE TABLE IF NOT EXISTS objects (type STRING NOT NULL, id STRING NOT NULL, value STRING NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (type, id))");
+			statement.close();
+		}
+		catch (SQLException exception)
+		{
+			throw new DatabaseException(exception);
+		}
 	}
 
 	@Override
