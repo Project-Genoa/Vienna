@@ -69,13 +69,9 @@ public final class Rewards
 	public EarthDB.Query toRedeemQuery(@NotNull String playerId, long currentTime, @NotNull Catalog catalog)
 	{
 		EarthDB.Query getQuery = new EarthDB.Query(true);
-		if (this.rubies > 0)
+		if (this.rubies > 0 || this.experiencePoints > 0)
 		{
 			getQuery.get("profile", playerId, Profile.class);
-		}
-		if (this.experiencePoints > 0)
-		{
-			// TODO
 		}
 		if (!this.items.isEmpty())
 		{
@@ -95,16 +91,19 @@ public final class Rewards
 		updateQuery.extra("rewards", this);
 		getQuery.then(results ->
 		{
-			if (this.rubies > 0)
+			if (this.rubies > 0 || this.experiencePoints > 0)
 			{
 				Profile profile = (Profile) results.get("profile").value();
-				profile.rubies.earned += this.rubies;
+				if (this.rubies > 0)
+				{
+					profile.rubies.earned += this.rubies;
+				}
+				if (this.experiencePoints > 0)
+				{
+					profile.experience += this.experiencePoints;
+					// TODO: check and trigger level rewards
+				}
 				updateQuery.update("profile", playerId, profile);
-			}
-
-			if (this.experiencePoints > 0)
-			{
-				// TODO
 			}
 
 			if (!this.items.isEmpty())

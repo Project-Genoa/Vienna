@@ -4,11 +4,10 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.Map;
 
-public final class MapBuilder<T>
+public final class MapBuilder<K, V>
 {
-	private final HashMap<String, T> map = new HashMap<>();
+	private final HashMap<K, V> map = new HashMap<>();
 
 	public MapBuilder()
 	{
@@ -16,14 +15,14 @@ public final class MapBuilder<T>
 	}
 
 	@NotNull
-	public MapBuilder<T> put(@NotNull String name, @Nullable T value)
+	public MapBuilder<K, V> put(@NotNull K name, @Nullable V value)
 	{
 		this.map.put(name, value);
 		return this;
 	}
 
 	@NotNull
-	public Map<String, T> getMap()
+	public HashMap<K, V> getMap()
 	{
 		return this.map;
 	}

@@ -10,6 +10,7 @@ import micheal65536.minecraftearth.apiserver.routes.player.WorkshopRouter;
 import micheal65536.minecraftearth.apiserver.routing.Request;
 import micheal65536.minecraftearth.apiserver.routing.Response;
 import micheal65536.minecraftearth.apiserver.routing.Router;
+import micheal65536.minecraftearth.apiserver.types.common.Rewards;
 import micheal65536.minecraftearth.apiserver.types.profile.SplitRubies;
 import micheal65536.minecraftearth.apiserver.utils.EarthApiResponse;
 import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
@@ -57,16 +58,52 @@ public class PlayerRouter extends Router
 			}
 		});
 
-		// TODO
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/profile/$userId").build(), request ->
 		{
-			return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("levelDistribution", new MapBuilder<>().put("2", new MapBuilder<>().put("experienceRequired", 500).put("inventory", new Object[0]).put("rubies", 1).put("buildplates", new Object[0]).put("challenges", new Object[0]).put("personaItems", new Object[0]).put("utilityBlocks", new Object[0]).getMap()).getMap()).put("totalExperience", 0).put("level", 1).put("currentLevelExperience", 0).put("experienceRemaining", 500).put("health", 20).put("healthPercentage", 100).getMap()), EarthApiResponse.class);
+			// TODO: properly implement levels/level rewards
+			try
+			{
+				Profile profile = (Profile) new EarthDB.Query(false)
+						.get("profile", request.getContextData("playerId"), Profile.class)
+						.execute(earthDB)
+						.get("profile").value();
+				return Response.okFromJson(new EarthApiResponse<>(new micheal65536.minecraftearth.apiserver.types.profile.Profile(
+						new MapBuilder<Integer, micheal65536.minecraftearth.apiserver.types.profile.Profile.Level>()
+								.put(2, new micheal65536.minecraftearth.apiserver.types.profile.Profile.Level(500, new Rewards(
+										15,
+										null,
+										new Rewards.Item[0],
+										new Rewards.Buildplate[0],
+										new Rewards.Challenge[0],
+										new Rewards.PersonaItem[0],
+										new Rewards.UtilityBlock[0]
+								)))
+								.getMap(),
+						profile.experience,
+						profile.level,
+						profile.experience,
+						500 - profile.experience,
+						profile.health,
+						((float) profile.health / 20.0f) * 100.0f
+				)), EarthApiResponse.class);
+			}
+			catch (DatabaseException exception)
+			{
+				LogManager.getLogger().error(exception);
+				return Response.serverError();
+			}
 		});
 
 		// TODO
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/tokens").build(), request ->
 		{
 			return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("tokens", new HashMap<>()).getMap()), EarthApiResponse.class);
+		});
+
+		// TODO
+		this.addHandler(new Route.Builder(Request.Method.GET, "/boosts").build(), request ->
+		{
+			return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("potions", new Object[5]).put("miniFigs", new Object[5]).put("miniFigRecords", new HashMap<>()).put("activeEffects", new Object[0]).put("scenarioBoosts", new HashMap<>()).put("expiration", null).put("statusEffects", new MapBuilder<>().put("tappableInteractionRadius", null).put("experiencePointRate", null).put("itemExperiencePointRates", null).put("attackDamageRate", null).put("playerDefenseRate", null).put("blockDamageRate", null).put("maximumPlayerHealth", 20).put("craftingSpeed", null).put("smeltingFuelIntensity", null).put("foodHealthRate", null).getMap()).getMap()), EarthApiResponse.class);
 		});
 
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB));
