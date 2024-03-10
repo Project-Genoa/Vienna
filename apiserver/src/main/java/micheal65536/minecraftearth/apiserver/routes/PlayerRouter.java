@@ -10,9 +10,9 @@ import micheal65536.minecraftearth.apiserver.routes.player.WorkshopRouter;
 import micheal65536.minecraftearth.apiserver.routing.Request;
 import micheal65536.minecraftearth.apiserver.routing.Response;
 import micheal65536.minecraftearth.apiserver.routing.Router;
-import micheal65536.minecraftearth.apiserver.types.common.Rewards;
 import micheal65536.minecraftearth.apiserver.types.profile.SplitRubies;
 import micheal65536.minecraftearth.apiserver.utils.EarthApiResponse;
+import micheal65536.minecraftearth.apiserver.utils.LevelUtils;
 import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
 import micheal65536.minecraftearth.db.DatabaseException;
 import micheal65536.minecraftearth.db.EarthDB;
@@ -20,6 +20,7 @@ import micheal65536.minecraftearth.db.model.player.Profile;
 import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 
 import java.util.HashMap;
+import java.util.stream.IntStream;
 
 public class PlayerRouter extends Router
 {
@@ -60,29 +61,25 @@ public class PlayerRouter extends Router
 
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/profile/$userId").build(), request ->
 		{
-			// TODO: properly implement levels/level rewards
 			try
 			{
 				Profile profile = (Profile) new EarthDB.Query(false)
 						.get("profile", request.getContextData("playerId"), Profile.class)
 						.execute(earthDB)
 						.get("profile").value();
+				LevelUtils.Level[] levels = LevelUtils.getLevels();
+				int currentLevelExperience = profile.experience - (profile.level > 1 ? (profile.level - 2 < levels.length ? levels[profile.level - 2].experienceRequired() : levels[levels.length - 1].experienceRequired()) : 0);
+				int experienceRemaining = profile.level - 1 < levels.length ? levels[profile.level - 1].experienceRequired() - profile.experience : 0;
 				return Response.okFromJson(new EarthApiResponse<>(new micheal65536.minecraftearth.apiserver.types.profile.Profile(
-						new MapBuilder<Integer, micheal65536.minecraftearth.apiserver.types.profile.Profile.Level>()
-								.put(2, new micheal65536.minecraftearth.apiserver.types.profile.Profile.Level(500, new Rewards(
-										15,
-										null,
-										new Rewards.Item[0],
-										new Rewards.Buildplate[0],
-										new Rewards.Challenge[0],
-										new Rewards.PersonaItem[0],
-										new Rewards.UtilityBlock[0]
-								)))
-								.getMap(),
+						IntStream.range(0, levels.length).collect(HashMap<Integer, micheal65536.minecraftearth.apiserver.types.profile.Profile.Level>::new, (hashMap, levelIndex) ->
+						{
+							LevelUtils.Level level = levels[levelIndex];
+							hashMap.put(levelIndex + 1, new micheal65536.minecraftearth.apiserver.types.profile.Profile.Level(level.experienceRequired(), level.rewards().toApiResponse()));
+						}, HashMap::putAll),
 						profile.experience,
 						profile.level,
-						profile.experience,
-						500 - profile.experience,
+						currentLevelExperience,
+						experienceRemaining,
 						profile.health,
 						((float) profile.health / 20.0f) * 100.0f
 				)), EarthApiResponse.class);

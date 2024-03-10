@@ -88,7 +88,6 @@ public final class Rewards
 		}
 
 		EarthDB.Query updateQuery = new EarthDB.Query(true);
-		updateQuery.extra("rewards", this);
 		getQuery.then(results ->
 		{
 			if (this.rubies > 0 || this.experiencePoints > 0)
@@ -101,9 +100,13 @@ public final class Rewards
 				if (this.experiencePoints > 0)
 				{
 					profile.experience += this.experiencePoints;
-					// TODO: check and trigger level rewards
 				}
 				updateQuery.update("profile", playerId, profile);
+
+				if (this.experiencePoints > 0)
+				{
+					updateQuery.then(LevelUtils.checkAndHandlePlayerLevelUp(playerId, currentTime, catalog));
+				}
 			}
 
 			if (!this.items.isEmpty())
@@ -144,6 +147,7 @@ public final class Rewards
 
 			return updateQuery;
 		});
+		getQuery.then(new EarthDB.Query(false).extra("rewards", this));
 
 		return getQuery;
 	}
