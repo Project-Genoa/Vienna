@@ -1,4 +1,4 @@
-package micheal65536.minecraftearth.apiserver.types.common;
+package micheal65536.minecraftearth.apiserver.types.profile;
 
 public record SplitRubies(
 		int purchased,

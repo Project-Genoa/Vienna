@@ -12,7 +12,7 @@ import micheal65536.minecraftearth.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.minecraftearth.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.minecraftearth.apiserver.types.common.BurnRate;
 import micheal65536.minecraftearth.apiserver.types.common.ExpectedPurchasePrice;
-import micheal65536.minecraftearth.apiserver.types.common.SplitRubies;
+import micheal65536.minecraftearth.apiserver.types.profile.SplitRubies;
 import micheal65536.minecraftearth.apiserver.types.workshop.FinishPrice;
 import micheal65536.minecraftearth.apiserver.types.workshop.OutputItem;
 import micheal65536.minecraftearth.apiserver.types.workshop.State;
@@ -29,7 +29,7 @@ import micheal65536.minecraftearth.db.model.common.NonStackableItemInstance;
 import micheal65536.minecraftearth.db.model.player.Hotbar;
 import micheal65536.minecraftearth.db.model.player.Inventory;
 import micheal65536.minecraftearth.db.model.player.Journal;
-import micheal65536.minecraftearth.db.model.player.Rubies;
+import micheal65536.minecraftearth.db.model.player.Profile;
 import micheal65536.minecraftearth.db.model.player.workshop.CraftingSlot;
 import micheal65536.minecraftearth.db.model.player.workshop.CraftingSlots;
 import micheal65536.minecraftearth.db.model.player.workshop.InputItem;
@@ -713,15 +713,15 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("crafting", playerId, CraftingSlots.class)
-						.get("rubies", playerId, Rubies.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							EarthDB.Query query = new EarthDB.Query(true);
-							query.get("rubies", playerId, Rubies.class);
+							query.get("profile", playerId, Profile.class);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
-							Rubies rubies = (Rubies) results1.get("rubies").value();
+							Profile profile = (Profile) results1.get("profile").value();
 
 							if (craftingSlot.activeJob == null)
 							{
@@ -743,7 +743,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							if (!rubies.spend(finishPrice.price()))
+							if (!profile.rubies.spend(finishPrice.price()))
 							{
 								return query;
 							}
@@ -751,13 +751,13 @@ public class WorkshopRouter extends Router
 							CraftingSlot.ActiveJob activeJob = craftingSlot.activeJob;
 							craftingSlot.activeJob = new CraftingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.totalRounds(), activeJob.collectedRounds(), true);
 
-							query.update("crafting", playerId, craftingSlots).update("rubies", playerId, rubies);
+							query.update("crafting", playerId, craftingSlots).update("profile", playerId, profile);
 
 							return query;
 						})
 						.execute(earthDB);
-				Rubies rubies = (Rubies) results.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
+				Profile profile = (Profile) results.get("profile").value();
+				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(profile.rubies.purchased, profile.rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -782,15 +782,15 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("smelting", playerId, SmeltingSlots.class)
-						.get("rubies", playerId, Rubies.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							EarthDB.Query query = new EarthDB.Query(true);
-							query.get("rubies", playerId, Rubies.class);
+							query.get("profile", playerId, Profile.class);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
-							Rubies rubies = (Rubies) results1.get("rubies").value();
+							Profile profile = (Profile) results1.get("profile").value();
 
 							if (smeltingSlot.activeJob == null)
 							{
@@ -812,7 +812,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							if (!rubies.spend(finishPrice.price()))
+							if (!profile.rubies.spend(finishPrice.price()))
 							{
 								return query;
 							}
@@ -820,13 +820,13 @@ public class WorkshopRouter extends Router
 							SmeltingSlot.ActiveJob activeJob = smeltingSlot.activeJob;
 							smeltingSlot.activeJob = new SmeltingSlot.ActiveJob(activeJob.sessionId(), activeJob.recipeId(), activeJob.startTime(), activeJob.input(), activeJob.addedFuel(), activeJob.totalRounds(), activeJob.collectedRounds(), true);
 
-							query.update("smelting", playerId, smeltingSlots).update("rubies", playerId, rubies);
+							query.update("smelting", playerId, smeltingSlots).update("profile", playerId, profile);
 
 							return query;
 						})
 						.execute(earthDB);
-				Rubies rubies = (Rubies) results.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
+				Profile profile = (Profile) results.get("profile").value();
+				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(profile.rubies.purchased, profile.rubies.earned), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -893,14 +893,14 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("crafting", playerId, CraftingSlots.class)
-						.get("rubies", playerId, Rubies.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							EarthDB.Query query = new EarthDB.Query(true);
 
 							CraftingSlots craftingSlots = (CraftingSlots) results1.get("crafting").value();
 							CraftingSlot craftingSlot = craftingSlots.slots[slotIndex - 1];
-							Rubies rubies = (Rubies) results1.get("rubies").value();
+							Profile profile = (Profile) results1.get("profile").value();
 
 							if (!craftingSlot.locked)
 							{
@@ -912,14 +912,14 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							if (!rubies.spend(unlockPrice))
+							if (!profile.rubies.spend(unlockPrice))
 							{
 								return query;
 							}
 
 							craftingSlot.locked = false;
 
-							query.update("crafting", playerId, craftingSlots).update("rubies", playerId, rubies);
+							query.update("crafting", playerId, craftingSlots).update("profile", playerId, profile);
 
 							return query;
 						})
@@ -949,14 +949,14 @@ public class WorkshopRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("smelting", playerId, SmeltingSlots.class)
-						.get("rubies", playerId, Rubies.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							EarthDB.Query query = new EarthDB.Query(true);
 
 							SmeltingSlots smeltingSlots = (SmeltingSlots) results1.get("smelting").value();
 							SmeltingSlot smeltingSlot = smeltingSlots.slots[slotIndex - 1];
-							Rubies rubies = (Rubies) results1.get("rubies").value();
+							Profile profile = (Profile) results1.get("profile").value();
 
 							if (!smeltingSlot.locked)
 							{
@@ -968,14 +968,14 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							if (!rubies.spend(unlockPrice))
+							if (!profile.rubies.spend(unlockPrice))
 							{
 								return query;
 							}
 
 							smeltingSlot.locked = false;
 
-							query.update("smelting", playerId, smeltingSlots).update("rubies", playerId, rubies);
+							query.update("smelting", playerId, smeltingSlots).update("profile", playerId, profile);
 
 							return query;
 						})

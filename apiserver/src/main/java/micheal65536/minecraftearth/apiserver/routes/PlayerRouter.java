@@ -10,12 +10,12 @@ import micheal65536.minecraftearth.apiserver.routes.player.WorkshopRouter;
 import micheal65536.minecraftearth.apiserver.routing.Request;
 import micheal65536.minecraftearth.apiserver.routing.Response;
 import micheal65536.minecraftearth.apiserver.routing.Router;
-import micheal65536.minecraftearth.apiserver.types.common.SplitRubies;
+import micheal65536.minecraftearth.apiserver.types.profile.SplitRubies;
 import micheal65536.minecraftearth.apiserver.utils.EarthApiResponse;
 import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
 import micheal65536.minecraftearth.db.DatabaseException;
 import micheal65536.minecraftearth.db.EarthDB;
-import micheal65536.minecraftearth.db.model.player.Rubies;
+import micheal65536.minecraftearth.db.model.player.Profile;
 import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 
 import java.util.HashMap;
@@ -28,11 +28,11 @@ public class PlayerRouter extends Router
 		{
 			try
 			{
-				Rubies rubies = (Rubies) new EarthDB.Query(false)
-						.get("rubies", request.getContextData("playerId"), Rubies.class)
+				Profile profile = (Profile) new EarthDB.Query(false)
+						.get("profile", request.getContextData("playerId"), Profile.class)
 						.execute(earthDB)
-						.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(rubies.purchased + rubies.earned), EarthApiResponse.class);
+						.get("profile").value();
+				return Response.okFromJson(new EarthApiResponse<>(profile.rubies.purchased + profile.rubies.earned), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{
@@ -44,11 +44,11 @@ public class PlayerRouter extends Router
 		{
 			try
 			{
-				Rubies rubies = (Rubies) new EarthDB.Query(false)
-						.get("rubies", request.getContextData("playerId"), Rubies.class)
+				Profile profile = (Profile) new EarthDB.Query(false)
+						.get("profile", request.getContextData("playerId"), Profile.class)
 						.execute(earthDB)
-						.get("rubies").value();
-				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(rubies.purchased, rubies.earned)), EarthApiResponse.class);
+						.get("profile").value();
+				return Response.okFromJson(new EarthApiResponse<>(new SplitRubies(profile.rubies.purchased, profile.rubies.earned)), EarthApiResponse.class);
 			}
 			catch (DatabaseException exception)
 			{

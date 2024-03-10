@@ -8,7 +8,7 @@ import micheal65536.minecraftearth.db.EarthDB;
 import micheal65536.minecraftearth.db.model.common.NonStackableItemInstance;
 import micheal65536.minecraftearth.db.model.player.Inventory;
 import micheal65536.minecraftearth.db.model.player.Journal;
-import micheal65536.minecraftearth.db.model.player.Rubies;
+import micheal65536.minecraftearth.db.model.player.Profile;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -71,7 +71,7 @@ public final class Rewards
 		EarthDB.Query getQuery = new EarthDB.Query(true);
 		if (this.rubies > 0)
 		{
-			getQuery.get("rubies", playerId, Rubies.class);
+			getQuery.get("profile", playerId, Profile.class);
 		}
 		if (this.experiencePoints > 0)
 		{
@@ -97,9 +97,9 @@ public final class Rewards
 		{
 			if (this.rubies > 0)
 			{
-				Rubies rubies = (Rubies) results.get("rubies").value();
-				rubies.earned += this.rubies;
-				updateQuery.update("rubies", playerId, rubies);
+				Profile profile = (Profile) results.get("profile").value();
+				profile.rubies.earned += this.rubies;
+				updateQuery.update("profile", playerId, profile);
 			}
 
 			if (this.experiencePoints > 0)
