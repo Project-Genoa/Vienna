@@ -7,6 +7,7 @@ import org.jetbrains.annotations.Nullable;
 public record Rewards(
 		@Nullable Integer rubies,
 		@Nullable Integer experiencePoints,
+		@Nullable Integer level,
 		@NotNull Item[] inventory,
 		@NotNull Buildplate[] buildplates,
 		@NotNull Challenge[] challenges,

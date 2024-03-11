@@ -1,6 +1,7 @@
 package micheal65536.minecraftearth.apiserver.utils;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import micheal65536.minecraftearth.apiserver.Catalog;
 import micheal65536.minecraftearth.apiserver.types.catalog.ItemsCatalog;
@@ -21,6 +22,8 @@ public final class Rewards
 {
 	private int rubies;
 	private int experiencePoints;
+	@Nullable
+	private Integer level;
 	private final HashMap<String, Integer> items = new HashMap<>();
 	private final LinkedHashSet<String> buildplates = new LinkedHashSet<>();
 	private final LinkedHashSet<String> challenges = new LinkedHashSet<>();
@@ -28,6 +31,13 @@ public final class Rewards
 	public Rewards()
 	{
 		// empty
+	}
+
+	@NotNull
+	public Rewards setLevel(int level)
+	{
+		this.level = level;
+		return this;
 	}
 
 	@NotNull
@@ -158,11 +168,41 @@ public final class Rewards
 		return new micheal65536.minecraftearth.apiserver.types.common.Rewards(
 				this.rubies,
 				this.experiencePoints,
+				this.level,
 				this.items.entrySet().stream().map(entry -> new micheal65536.minecraftearth.apiserver.types.common.Rewards.Item(entry.getKey(), entry.getValue())).toArray(micheal65536.minecraftearth.apiserver.types.common.Rewards.Item[]::new),
 				this.buildplates.stream().map(buildplate -> new micheal65536.minecraftearth.apiserver.types.common.Rewards.Buildplate(buildplate)).toArray(micheal65536.minecraftearth.apiserver.types.common.Rewards.Buildplate[]::new),
 				this.challenges.stream().map(challenge -> new micheal65536.minecraftearth.apiserver.types.common.Rewards.Challenge(challenge)).toArray(micheal65536.minecraftearth.apiserver.types.common.Rewards.Challenge[]::new),
 				new micheal65536.minecraftearth.apiserver.types.common.Rewards.PersonaItem[0],
 				new micheal65536.minecraftearth.apiserver.types.common.Rewards.UtilityBlock[0]
+		);
+	}
+
+	@NotNull
+	public static Rewards fromDBRewardsModel(@NotNull micheal65536.minecraftearth.db.model.common.Rewards rewardsModel)
+	{
+		Rewards rewards = new Rewards();
+		rewards.addRubies(rewardsModel.rubies());
+		rewards.addExperiencePoints(rewardsModel.experiencePoints());
+		if (rewardsModel.level() != null)
+		{
+			rewards.setLevel(rewardsModel.level());
+		}
+		rewardsModel.items().forEach(rewards::addItem);
+		Arrays.stream(rewardsModel.buildplates()).forEach(rewards::addBuildplate);
+		Arrays.stream(rewardsModel.challenges()).forEach(rewards::addChallenge);
+		return rewards;
+	}
+
+	@NotNull
+	public micheal65536.minecraftearth.db.model.common.Rewards toDBRewardsModel()
+	{
+		return new micheal65536.minecraftearth.db.model.common.Rewards(
+				this.rubies,
+				this.experiencePoints,
+				this.level,
+				new HashMap<>(this.items),
+				this.buildplates.toArray(String[]::new),
+				this.challenges.toArray(String[]::new)
 		);
 	}
 }

@@ -5,6 +5,9 @@ import org.jetbrains.annotations.NotNull;
 import micheal65536.minecraftearth.apiserver.Catalog;
 import micheal65536.minecraftearth.db.EarthDB;
 import micheal65536.minecraftearth.db.model.player.Profile;
+import micheal65536.minecraftearth.db.model.player.Tokens;
+
+import java.util.HashMap;
 
 public final class LevelUtils
 {
@@ -34,7 +37,9 @@ public final class LevelUtils
 			{
 				changed = true;
 				profile.level++;
-				updateQuery.then(levels[profile.level - 2].rewards.toRedeemQuery(playerId, currentTime, catalog));
+				Rewards rewards = levels[profile.level - 2].rewards;
+				updateQuery.then(rewards.toRedeemQuery(playerId, currentTime, catalog));
+				updateQuery.then(TokenUtils.addToken(playerId, new Tokens.Token(Tokens.Token.Type.LEVEL_UP, new Rewards().setLevel(profile.level).toDBRewardsModel(), Tokens.Token.Lifetime.TRANSIENT, new HashMap<>())));
 			}
 			if (changed)
 			{

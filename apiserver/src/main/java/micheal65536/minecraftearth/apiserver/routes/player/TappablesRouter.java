@@ -9,6 +9,7 @@ import micheal65536.minecraftearth.apiserver.routing.Router;
 import micheal65536.minecraftearth.apiserver.routing.ServerErrorException;
 import micheal65536.minecraftearth.apiserver.types.common.Coordinate;
 import micheal65536.minecraftearth.apiserver.types.common.Rarity;
+import micheal65536.minecraftearth.apiserver.types.common.Token;
 import micheal65536.minecraftearth.apiserver.types.tappables.ActiveLocation;
 import micheal65536.minecraftearth.apiserver.utils.EarthApiResponse;
 import micheal65536.minecraftearth.apiserver.utils.MapBuilder;
@@ -126,13 +127,13 @@ public class TappablesRouter extends Router
 
 				if ((boolean) results.getExtra("success"))
 				{
-					return Response.okFromJson(new EarthApiResponse<>(new MapBuilder()
-							.put("token", new MapBuilder<>()
-									.put("lifetime", "Persistent")
-									.put("clientType", "redeemtappable")
-									.put("clientProperties", new HashMap<>())
-									.put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse())
-									.getMap()
+					return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>()
+							.put("token", new Token(
+											Token.Type.TAPPABLE,
+											new HashMap<>(),
+											((Rewards) results.getExtra("rewards")).toApiResponse(),
+											Token.Lifetime.PERSISTENT
+									)
 							)
 							.put("updates", null) // TODO: why is there an updates field here and what is it used for? it is null even when the global updates field is not null
 							.getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
