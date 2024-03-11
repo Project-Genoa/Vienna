@@ -85,7 +85,7 @@ public class TappablesRouter extends Router
 			TappableRequest tappableRequest = request.getBodyAsJson(TappableRequest.class);
 
 			TappablesManager.Tappable tappable = tappablesManager.getTappableWithId(tappableRequest.id, tileId);
-			if (tappable == null || tappable.spawnTime() + tappable.validFor() < request.timestamp) // TODO: check player location is in radius
+			if (tappable == null || tappable.spawnTime() > request.timestamp || tappable.spawnTime() + tappable.validFor() <= request.timestamp) // TODO: check player location is in radius
 			{
 				return Response.badRequest();
 			}
