@@ -14,5 +14,7 @@
         <module>db</module>
         <module>eventbus/server</module>
         <module>eventbus/client</module>
+        <module>objectstore/server</module>
+        <module>objectstore/client</module>
     </modules>
 </project>

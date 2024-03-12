@@ -26,6 +26,8 @@ import micheal65536.minecraftearth.db.DatabaseException;
 import micheal65536.minecraftearth.db.EarthDB;
 import micheal65536.minecraftearth.eventbus.client.EventBusClient;
 import micheal65536.minecraftearth.eventbus.client.EventBusClientException;
+import micheal65536.minecraftearth.objectstore.client.ObjectStoreClient;
+import micheal65536.minecraftearth.objectstore.client.ObjectStoreClientException;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,16 +59,24 @@ public class Main
 				.argName("eventbus")
 				.desc("Event bus address, defaults to localhost:5532")
 				.build());
+		options.addOption(Option.builder()
+				.option("objectstore")
+				.hasArg()
+				.argName("objectstore")
+				.desc("Object storage address, defaults to localhost:5396")
+				.build());
 		CommandLine commandLine;
 		int httpPort;
 		String dbConnectionString;
 		String eventBusConnectionString;
+		String objectStoreConnectionString;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
 			httpPort = commandLine.hasOption("port") ? (int) (long) commandLine.getParsedOptionValue("port") : 8080;
 			dbConnectionString = commandLine.hasOption("db") ? commandLine.getOptionValue("db") : "./earth.db";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
+			objectStoreConnectionString = commandLine.hasOption("objectstore") ? commandLine.getOptionValue("objectstore") : "localhost:5396";
 		}
 		catch (ParseException exception)
 		{
@@ -105,13 +115,27 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to event bus");
 
-		Application application = buildApplication(earthDB, eventBusClient, catalog);
+		LogManager.getLogger().info("Connecting to object storage");
+		ObjectStoreClient objectStoreClient;
+		try
+		{
+			objectStoreClient = ObjectStoreClient.create(objectStoreConnectionString);
+		}
+		catch (ObjectStoreClientException exception)
+		{
+			LogManager.getLogger().fatal("Could not connect to object storage", exception);
+			System.exit(1);
+			return;
+		}
+		LogManager.getLogger().info("Connected to object storage");
+
+		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog);
 
 		startServer(httpPort, application);
 	}
 
 	@NotNull
-	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull Catalog catalog)
+	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
 	{
 		Application application = new Application();
 		Router router = new Router();
