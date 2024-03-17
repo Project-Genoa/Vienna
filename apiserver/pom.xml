@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>micheal65536.minecraftearth</groupId>
+    <groupId>micheal65536.vienna</groupId>
     <artifactId>apiserver</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
@@ -25,7 +25,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>micheal65536.minecraftearth.apiserver.Main</mainClass>
+                            <mainClass>micheal65536.vienna.apiserver.Main</mainClass>
                         </manifest>
                         <manifestEntries>
                             <Multi-Release>true</Multi-Release>
@@ -52,17 +52,17 @@
         </dependency>
 
         <dependency>
-            <groupId>micheal65536.minecraftearth</groupId>
+            <groupId>micheal65536.vienna</groupId>
             <artifactId>db</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>micheal65536.minecraftearth</groupId>
+            <groupId>micheal65536.vienna</groupId>
             <artifactId>eventbus-client</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
-            <groupId>micheal65536.minecraftearth</groupId>
+            <groupId>micheal65536.vienna</groupId>
             <artifactId>objectstore-client</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
