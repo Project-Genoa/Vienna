@@ -3,6 +3,7 @@ package micheal65536.vienna.apiserver.routes;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.apiserver.Catalog;
+import micheal65536.vienna.apiserver.routes.player.BuildplatesRouter;
 import micheal65536.vienna.apiserver.routes.player.InventoryRouter;
 import micheal65536.vienna.apiserver.routes.player.ProfileRouter;
 import micheal65536.vienna.apiserver.routes.player.TappablesRouter;
@@ -15,12 +16,13 @@ import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
+import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
 import java.util.HashMap;
 
 public class PlayerRouter extends Router
 {
-	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull Catalog catalog)
+	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
 	{
 		// TODO
 		this.addHandler(new Route.Builder(Request.Method.GET, "/boosts").build(), request ->
@@ -32,6 +34,7 @@ public class PlayerRouter extends Router
 		this.addSubRouter("/*", 0, new TokensRouter(earthDB));
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
+		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, eventBusClient, objectStoreClient));
 		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, catalog));
 	}
 }

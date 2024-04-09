@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.apiserver.routes.AuthenticatedRouter;
+import micheal65536.vienna.apiserver.routes.BuildplateInstanceRouter;
 import micheal65536.vienna.apiserver.routes.SigninRouter;
 import micheal65536.vienna.apiserver.routing.Application;
 import micheal65536.vienna.apiserver.routing.Router;
@@ -65,11 +66,19 @@ public class Main
 				.argName("objectstore")
 				.desc("Object storage address, defaults to localhost:5396")
 				.build());
+		options.addOption(Option.builder()
+				.option("previewGenerator")
+				.hasArg()
+				.argName("command")
+				.required()
+				.desc("Command to run the buildplate preview generator")
+				.build());
 		CommandLine commandLine;
 		int httpPort;
 		String dbConnectionString;
 		String eventBusConnectionString;
 		String objectStoreConnectionString;
+		String buildplatePreviewGeneratorCommand;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
@@ -77,6 +86,7 @@ public class Main
 			dbConnectionString = commandLine.hasOption("db") ? commandLine.getOptionValue("db") : "./earth.db";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
 			objectStoreConnectionString = commandLine.hasOption("objectstore") ? commandLine.getOptionValue("objectstore") : "localhost:5396";
+			buildplatePreviewGeneratorCommand = commandLine.getOptionValue("previewGenerator");
 		}
 		catch (ParseException exception)
 		{
@@ -129,21 +139,23 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to object storage");
 
-		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog);
+		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog, buildplatePreviewGeneratorCommand);
 
 		startServer(httpPort, application);
 	}
 
 	@NotNull
-	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog, @NotNull String buildplatePreviewGeneratorCommand)
 	{
 		Application application = new Application();
 		Router router = new Router();
 		application.router.addSubRouter("/*", 0, router);
 
 		router.addSubRouter("/auth/api/v1.1/*", 3, new SigninRouter());    // for some reason MCE uses the base path from the previous session when switching users without restarting the app
-		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, catalog));
+		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, objectStoreClient, catalog));
 		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
+
+		router.addSubRouter("/buildplate/*", 1, new BuildplateInstanceRouter(earthDB, objectStoreClient, catalog, buildplatePreviewGeneratorCommand));
 
 		return application;
 	}

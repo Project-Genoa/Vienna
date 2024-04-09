@@ -10,6 +10,9 @@
     <packaging>pom</packaging>
     <modules>
         <module>apiserver</module>
+        <module>buildplate/launcher</module>
+        <module>buildplate/connector-plugin</module>
+        <module>buildplate/connector-model</module>
         <module>tappablesgenerator</module>
         <module>db</module>
         <module>eventbus/server</module>
