@@ -40,7 +40,7 @@ public class Main
 		{
 			commandLine = new DefaultParser().parse(options, args);
 			dataDir = commandLine.getOptionValue("dataDir");
-			port = commandLine.hasOption("port") ? (int) commandLine.getParsedOptionValue("port") : 5396;
+			port = commandLine.hasOption("port") ? (int) (long) commandLine.getParsedOptionValue("port") : 5396;
 		}
 		catch (ParseException exception)
 		{
