@@ -560,7 +560,7 @@ public class WorkshopRouter extends Router
 							{
 								if (inputItem.instances().length > 0)
 								{
-									inventory.addItems(inputItem.id(), Arrays.stream(inputItem.instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.health())).toArray(NonStackableItemInstance[]::new));
+									inventory.addItems(inputItem.id(), Arrays.stream(inputItem.instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.wear())).toArray(NonStackableItemInstance[]::new));
 								}
 								else if (inputItem.count() > 0)
 								{
@@ -579,7 +579,7 @@ public class WorkshopRouter extends Router
 								}
 								else
 								{
-									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 100.0f)).toArray(NonStackableItemInstance[]::new));
+									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 								}
 								journal.touchItem(state.output().id(), request.timestamp);
 							}
@@ -632,7 +632,7 @@ public class WorkshopRouter extends Router
 
 							if (state.input().instances().length > 0)
 							{
-								inventory.addItems(state.input().id(), Arrays.stream(state.input().instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.health())).toArray(NonStackableItemInstance[]::new));
+								inventory.addItems(state.input().id(), Arrays.stream(state.input().instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.wear())).toArray(NonStackableItemInstance[]::new));
 							}
 							else if (state.input().count() > 0)
 							{
@@ -650,7 +650,7 @@ public class WorkshopRouter extends Router
 								}
 								else
 								{
-									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 100.0f)).toArray(NonStackableItemInstance[]::new));
+									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 								}
 								journal.touchItem(state.output().id(), request.timestamp);
 							}
@@ -659,7 +659,7 @@ public class WorkshopRouter extends Router
 							{
 								if (state.remainingAddedFuel().item().instances().length > 0)
 								{
-									inventory.addItems(state.remainingAddedFuel().item().id(), Arrays.stream(state.remainingAddedFuel().item().instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.health())).toArray(NonStackableItemInstance[]::new));
+									inventory.addItems(state.remainingAddedFuel().item().id(), Arrays.stream(state.remainingAddedFuel().item().instances()).map(instance -> new NonStackableItemInstance(instance.instanceId(), instance.wear())).toArray(NonStackableItemInstance[]::new));
 								}
 								else if (state.remainingAddedFuel().item().count() > 0)
 								{

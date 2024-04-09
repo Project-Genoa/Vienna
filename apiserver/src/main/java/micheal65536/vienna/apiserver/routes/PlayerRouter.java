@@ -30,7 +30,7 @@ public class PlayerRouter extends Router
 
 		this.addSubRouter("/*", 0, new ProfileRouter(earthDB));
 		this.addSubRouter("/*", 0, new TokensRouter(earthDB));
-		this.addSubRouter("/*", 0, new InventoryRouter(earthDB));
+		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, catalog));
 	}

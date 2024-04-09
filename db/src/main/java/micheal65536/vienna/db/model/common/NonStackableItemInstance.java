@@ -4,7 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 public record NonStackableItemInstance(
 		@NotNull String instanceId,
-		float health
+		int wear
 )
 {
 }

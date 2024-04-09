@@ -3,6 +3,7 @@ package micheal65536.vienna.apiserver.routes.player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.routing.Request;
 import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
@@ -11,6 +12,7 @@ import micheal65536.vienna.apiserver.types.inventory.HotbarItem;
 import micheal65536.vienna.apiserver.types.inventory.NonStackableInventoryItem;
 import micheal65536.vienna.apiserver.types.inventory.StackableInventoryItem;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
+import micheal65536.vienna.apiserver.utils.ItemWear;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
@@ -24,7 +26,7 @@ import java.util.HashSet;
 
 public class InventoryRouter extends Router
 {
-	public InventoryRouter(@NotNull EarthDB earthDB)
+	public InventoryRouter(@NotNull EarthDB earthDB, @NotNull Catalog catalog)
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/inventory/survival").build(), request ->
 		{
@@ -53,7 +55,7 @@ public class InventoryRouter extends Router
 					item.uuid(),
 					item.count(),
 					item.instanceId(),
-					item.instanceId() != null ? inventoryModel.getItemInstance(item.uuid(), item.instanceId()).health() : 0.0f
+					item.instanceId() != null ? ItemWear.wearToHealth(item.uuid(), inventoryModel.getItemInstance(item.uuid(), item.instanceId()).wear(), catalog.itemsCatalog) : 0.0f
 			) : null).toArray(HotbarItem[]::new);
 			inventory.put("hotbar", hotbarItems);
 			HashMap<String, Integer> hotbarItemCounts = new HashMap<>();
@@ -96,7 +98,7 @@ public class InventoryRouter extends Router
 				String lastSeen = TimeFormatter.formatTime(itemJournalEntry.lastSeen());
 				return new NonStackableInventoryItem(
 						uuid,
-						Arrays.stream(item.instances()).filter(instance -> !hotbarItemInstances.contains(instance.instanceId())).map(instance -> new NonStackableInventoryItem.Instance(instance.instanceId(), instance.health())).toArray(NonStackableInventoryItem.Instance[]::new),
+						Arrays.stream(item.instances()).filter(instance -> !hotbarItemInstances.contains(instance.instanceId())).map(instance -> new NonStackableInventoryItem.Instance(instance.instanceId(), ItemWear.wearToHealth(item.id(), instance.wear(), catalog.itemsCatalog))).toArray(NonStackableInventoryItem.Instance[]::new),
 						1,
 						new NonStackableInventoryItem.On(firstSeen),
 						new NonStackableInventoryItem.On(lastSeen)
@@ -156,7 +158,7 @@ public class InventoryRouter extends Router
 					item.uuid(),
 					item.count(),
 					item.instanceId(),
-					item.instanceId() != null ? inventoryModel.getItemInstance(item.uuid(), item.instanceId()).health() : 0.0f
+					item.instanceId() != null ? ItemWear.wearToHealth(item.uuid(), inventoryModel.getItemInstance(item.uuid(), item.instanceId()).wear(), catalog.itemsCatalog) : 0.0f
 			) : null).toArray(HotbarItem[]::new);
 			return Response.okFromJson(hotbarItems, HotbarItem[].class);
 		});

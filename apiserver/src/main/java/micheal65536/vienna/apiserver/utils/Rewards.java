@@ -136,7 +136,7 @@ public final class Rewards
 						}
 						else
 						{
-							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 100.0f)).toArray(NonStackableItemInstance[]::new));
+							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
 						journal.touchItem(id, currentTime);
 					}
