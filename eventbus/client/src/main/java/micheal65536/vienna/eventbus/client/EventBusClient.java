@@ -70,6 +70,8 @@ public class EventBusClient
 
 	private final HashMap<Integer, Publisher> publishers = new HashMap<>();
 	private final HashMap<Integer, Subscriber> subscribers = new HashMap<>();
+	private final HashMap<Integer, RequestSender> requestSenders = new HashMap<>();
+	private final HashMap<Integer, RequestHandler> requestHandlers = new HashMap<>();
 	private int nextChannelId = 1;
 
 	private EventBusClient(@NotNull Socket socket)
@@ -103,6 +105,12 @@ public class EventBusClient
 				publisher.closed();
 			});
 			this.publishers.clear();
+
+			this.requestSenders.forEach((channelId, requestSender) ->
+			{
+				requestSender.closed();
+			});
+			this.requestSenders.clear();
 		});
 
 		this.incomingThread = new Thread(() ->
@@ -165,6 +173,12 @@ public class EventBusClient
 				subscriber.error();
 			});
 			this.subscribers.clear();
+
+			this.requestHandlers.forEach((channelId, requestHandler) ->
+			{
+				requestHandler.error();
+			});
+			this.requestHandlers.clear();
 		});
 
 		this.outgoingThread.start();
@@ -257,6 +271,40 @@ public class EventBusClient
 		return subscriber;
 	}
 
+	public RequestSender addRequestSender()
+	{
+		this.lock.writeLock().lock();
+		int channelId = this.getUnusedChannelId();
+		RequestSender requestSender = new RequestSender(this, channelId);
+		if (this.sendMessage(channelId, "REQ"))
+		{
+			this.requestSenders.put(channelId, requestSender);
+		}
+		else
+		{
+			requestSender.closed();
+		}
+		this.lock.writeLock().unlock();
+		return requestSender;
+	}
+
+	public RequestHandler addRequestHandler(@NotNull String queueName, @NotNull RequestHandler.Handler handler)
+	{
+		this.lock.writeLock().lock();
+		int channelId = this.getUnusedChannelId();
+		RequestHandler requestHandler = new RequestHandler(this, channelId, queueName, handler);
+		if (this.sendMessage(channelId, "HND " + queueName))
+		{
+			this.requestHandlers.put(channelId, requestHandler);
+		}
+		else
+		{
+			requestHandler.error();
+		}
+		this.lock.writeLock().unlock();
+		return requestHandler;
+	}
+
 	void removePublisher(int channelId)
 	{
 		this.lock.writeLock().lock();
@@ -268,6 +316,20 @@ public class EventBusClient
 	{
 		this.lock.writeLock().lock();
 		this.subscribers.remove(channelId);
+		this.lock.writeLock().unlock();
+	}
+
+	void removeRequestSender(int channelId)
+	{
+		this.lock.writeLock().lock();
+		this.requestSenders.remove(channelId);
+		this.lock.writeLock().unlock();
+	}
+
+	void removeRequestHandler(int channelId)
+	{
+		this.lock.writeLock().lock();
+		this.requestHandlers.remove(channelId);
 		this.lock.writeLock().unlock();
 	}
 
@@ -307,6 +369,18 @@ public class EventBusClient
 		if (subscriber != null)
 		{
 			return subscriber.handleMessage(parts[1]);
+		}
+
+		RequestSender requestSender = this.requestSenders.getOrDefault(channelId, null);
+		if (requestSender != null)
+		{
+			return requestSender.handleMessage(parts[1]);
+		}
+
+		RequestHandler requestHandler = this.requestHandlers.getOrDefault(channelId, null);
+		if (requestHandler != null)
+		{
+			return requestHandler.handleMessage(parts[1]);
 		}
 
 		return channelId < this.nextChannelId;

@@ -12,6 +12,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.locks.ReentrantLock;
 
 public class NetworkServer
@@ -52,7 +53,6 @@ public class NetworkServer
 		private final ReentrantLock sendLock = new ReentrantLock(true);
 
 		private final HashMap<Integer, Channel> channels = new HashMap<>();
-
 
 		public Connection(@NotNull Socket socket) throws IOException
 		{
@@ -206,7 +206,12 @@ public class NetworkServer
 			{
 				case "PUB" ->
 				{
-					return new PublisherChannel(this, channelId, NetworkServer.this.server.addPublisher());
+					PublisherChannel publisherChannel = new PublisherChannel(this, channelId);
+					if (!publisherChannel.isValid())
+					{
+						return null;
+					}
+					return publisherChannel;
 				}
 				case "SUB" ->
 				{
@@ -220,6 +225,28 @@ public class NetworkServer
 						return null;
 					}
 					return subscriberChannel;
+				}
+				case "REQ" ->
+				{
+					RequestSenderChannel requestSenderChannel = new RequestSenderChannel(this, channelId);
+					if (!requestSenderChannel.isValid())
+					{
+						return null;
+					}
+					return requestSenderChannel;
+				}
+				case "HND" ->
+				{
+					if (parts.length < 2)
+					{
+						return null;
+					}
+					RequestHandlerChannel requestHandlerChannel = new RequestHandlerChannel(this, channelId, parts[1]);
+					if (!requestHandlerChannel.isValid())
+					{
+						return null;
+					}
+					return requestHandlerChannel;
 				}
 				default ->
 				{
@@ -240,6 +267,8 @@ public class NetworkServer
 			this.channelId = channelId;
 		}
 
+		public abstract boolean isValid();
+
 		public abstract void handleCommand(@NotNull String command);
 
 		public abstract void handleClose();
@@ -255,10 +284,16 @@ public class NetworkServer
 		private final Server.Publisher publisher;
 		private boolean error = false;
 
-		public PublisherChannel(@NotNull Connection connection, int channelId, @NotNull Server.Publisher publisher)
+		public PublisherChannel(@NotNull Connection connection, int channelId)
 		{
 			super(connection, channelId);
-			this.publisher = publisher;
+			this.publisher = NetworkServer.this.server.addPublisher();
+		}
+
+		@Override
+		public boolean isValid()
+		{
+			return true;
 		}
 
 		@Override
@@ -356,6 +391,237 @@ public class NetworkServer
 			{
 				this.sendMessage("ERR");
 			}
+		}
+	}
+
+	private final class RequestSenderChannel extends Channel
+	{
+		private final Server.RequestSender requestSender;
+		private volatile CompletableFuture<String> currentPendingResponse = null;
+		private volatile boolean error = false;
+
+		public RequestSenderChannel(@NotNull Connection connection, int channelId)
+		{
+			super(connection, channelId);
+			this.requestSender = NetworkServer.this.server.addRequestSender();
+		}
+
+		@Override
+		public boolean isValid()
+		{
+			return true;
+		}
+
+		@Override
+		public void handleCommand(@NotNull String command)
+		{
+			if (this.error)
+			{
+				this.sendMessage("ERR");
+				return;
+			}
+
+			if (this.currentPendingResponse != null)
+			{
+				this.error();
+				return;
+			}
+
+			String[] parts = command.split(" ", 2);
+			if (parts[0].equals("REQ"))
+			{
+				String entryString = parts[1];
+				String[] fields = entryString.split(":", 3);
+				if (fields.length != 3)
+				{
+					this.error();
+					return;
+				}
+
+				long timestamp = System.currentTimeMillis();
+				String queueName = fields[0];
+				String type = fields[1];
+				String data = fields[2];
+
+				CompletableFuture<String> completableFuture = this.requestSender.request(queueName, timestamp, type, data);
+				if (completableFuture != null)
+				{
+					this.currentPendingResponse = completableFuture;
+					this.sendMessage("ACK");
+					completableFuture.thenAccept(response ->
+					{
+						if (this.currentPendingResponse != null)
+						{
+							if (this.currentPendingResponse != completableFuture)
+							{
+								throw new AssertionError();
+							}
+							this.currentPendingResponse = null;
+							if (response != null)
+							{
+								this.sendMessage("REP " + response);
+							}
+							else
+							{
+								this.sendMessage("NREP");
+							}
+						}
+					});
+				}
+				else
+				{
+					this.error();
+				}
+			}
+			else
+			{
+				this.error();
+			}
+		}
+
+		@Override
+		public void handleClose()
+		{
+			this.requestSender.remove();
+			this.currentPendingResponse = null;
+		}
+
+		private void error()
+		{
+			this.error = true;
+			this.currentPendingResponse = null;
+			this.sendMessage("ERR");
+		}
+	}
+
+	private final class RequestHandlerChannel extends Channel
+	{
+		private final Server.RequestHandler requestHandler;
+		private final HashMap<Integer, CompletableFuture<String>> pendingResponses = new HashMap<>();
+		private int nextRequestId = 1;
+		private boolean error = false;
+
+		public RequestHandlerChannel(@NotNull Connection connection, int channelId, @NotNull String queueName)
+		{
+			super(connection, channelId);
+			this.requestHandler = NetworkServer.this.server.addRequestHandler(queueName, this::handleRequest, this::handleError);
+		}
+
+		public boolean isValid()
+		{
+			return this.requestHandler != null;
+		}
+
+		@Override
+		public void handleCommand(@NotNull String command)
+		{
+			if (this.error)
+			{
+				this.sendMessage("ERR");
+				return;
+			}
+
+			String[] parts = command.split(" ", 2);
+			if (parts[0].equals("REP"))
+			{
+				String entryString = parts[1];
+				String[] fields = entryString.split(":", 2);
+				if (fields.length != 2)
+				{
+					this.error();
+					return;
+				}
+
+				int requestId;
+				try
+				{
+					requestId = Integer.parseInt(fields[0]);
+				}
+				catch (NumberFormatException exception)
+				{
+					this.error();
+					return;
+				}
+				String data = fields[1];
+
+				CompletableFuture<String> responseCompletableFuture = this.pendingResponses.remove(requestId);
+				if (responseCompletableFuture != null)
+				{
+					responseCompletableFuture.complete(data);
+				}
+				else
+				{
+					this.error();
+				}
+			}
+			else if (parts[0].equals("NREP"))
+			{
+				int requestId;
+				try
+				{
+					requestId = Integer.parseInt(parts[1]);
+				}
+				catch (NumberFormatException exception)
+				{
+					this.error();
+					return;
+				}
+
+				CompletableFuture<String> responseCompletableFuture = this.pendingResponses.remove(requestId);
+				if (responseCompletableFuture != null)
+				{
+					responseCompletableFuture.complete(null);
+				}
+				else
+				{
+					this.error();
+				}
+			}
+			else
+			{
+				this.error();
+			}
+		}
+
+		@Override
+		public void handleClose()
+		{
+			this.requestHandler.remove();
+			this.pendingResponses.values().forEach(completableFuture -> completableFuture.complete(null));
+			this.pendingResponses.clear();
+		}
+
+		@NotNull
+		private CompletableFuture<String> handleRequest(@NotNull Server.RequestHandler.Request request)
+		{
+			int requestId = this.nextRequestId++;
+			CompletableFuture<String> responseCompletableFuture = new CompletableFuture<>();
+			this.pendingResponses.put(requestId, responseCompletableFuture);
+
+			StringBuilder stringBuilder = new StringBuilder();
+			stringBuilder.append(requestId);
+			stringBuilder.append(":");
+			stringBuilder.append(Long.toString(request.timestamp));
+			stringBuilder.append(":");
+			stringBuilder.append(request.type);
+			stringBuilder.append(":");
+			stringBuilder.append(request.data);
+			this.sendMessage(stringBuilder.toString());
+
+			return responseCompletableFuture;
+		}
+
+		private void handleError(@NotNull Server.RequestHandler.ErrorMessage errorMessage)
+		{
+			this.error();
+		}
+
+		private void error()
+		{
+			this.error = true;
+			this.pendingResponses.values().forEach(completableFuture -> completableFuture.complete(null));
+			this.pendingResponses.clear();
+			this.sendMessage("ERR");
 		}
 	}
 }
