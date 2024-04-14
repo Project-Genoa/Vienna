@@ -21,13 +21,12 @@ import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedResponse;
-import micheal65536.vienna.buildplate.connector.model.RequestResponseMessage;
 import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.eventbus.client.Publisher;
+import micheal65536.vienna.eventbus.client.RequestHandler;
 import micheal65536.vienna.eventbus.client.Subscriber;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
@@ -91,8 +90,8 @@ public class Instance
 	private final Logger logger;
 
 	private final String eventBusQueueName;
-	private Publisher publisher = null;
 	private Subscriber subscriber = null;
+	private RequestHandler requestHandler = null;
 
 	private final OkHttpClient okHttpClient;
 
@@ -207,7 +206,6 @@ public class Instance
 
 			this.logger.info("Running server");
 
-			this.publisher = this.eventBusClient.addPublisher();
 			this.subscriber = this.eventBusClient.addSubscriber(this.eventBusQueueName, new Subscriber.SubscriberListener()
 			{
 				@Override
@@ -220,6 +218,31 @@ public class Instance
 				public void error()
 				{
 					Instance.this.logger.error("Event bus subscriber error");
+					Instance.this.beginShutdown();
+				}
+			});
+			this.requestHandler = this.eventBusClient.addRequestHandler(this.eventBusQueueName, new RequestHandler.Handler()
+			{
+				@Override
+				@Nullable
+				public String request(@NotNull RequestHandler.Request request)
+				{
+					Object responseObject = Instance.this.handleConnectorRequest(request);
+					if (responseObject != null)
+					{
+						Gson gson = new Gson().newBuilder().serializeNulls().create();
+						return gson.toJson(responseObject);
+					}
+					else
+					{
+						return null;
+					}
+				}
+
+				@Override
+				public void error()
+				{
+					Instance.this.logger.error("Event bus request handler error");
 					Instance.this.beginShutdown();
 				}
 			});
@@ -269,13 +292,13 @@ public class Instance
 		}
 		finally
 		{
-			if (this.publisher != null)
-			{
-				this.publisher.close();
-			}
 			if (this.subscriber != null)
 			{
 				this.subscriber.close();
+			}
+			if (this.requestHandler != null)
+			{
+				this.requestHandler.close();
 			}
 
 			this.cleanupBaseDir();
@@ -301,45 +324,6 @@ public class Instance
 				{
 					this.logger.info("Saving snapshot");
 					this.sendApiServerRequest("/buildplate/snapshot/%s/%s".formatted(this.playerId, this.buildplateId), worldSavedMessage.dataBase64(), null);
-				}
-			}
-			case "playerConnectedRequest" ->
-			{
-				Request<PlayerConnectedRequest> playerConnectedRequest = this.readRequestJson(event.data, PlayerConnectedRequest.class);
-				if (playerConnectedRequest != null)
-				{
-					if (playerConnectedRequest.request.uuid().equals(this.playerId))    // TODO: probably remove this eventually and put in API server
-					{
-						PlayerConnectedResponse playerConnectedResponse = this.sendApiServerRequest("/buildplate/join/%s".formatted(this.instanceId), playerConnectedRequest.request, PlayerConnectedResponse.class);
-						if (playerConnectedResponse != null)
-						{
-							this.sendConnectorResponse("playerConnectedResponse", playerConnectedRequest.id, playerConnectedResponse);
-							this.logger.info("Player {} has connected", playerConnectedRequest.request.uuid());
-						}
-					}
-					else
-					{
-						this.sendConnectorResponse("playerConnectedResponse", playerConnectedRequest.id, new PlayerConnectedResponse(false, null));
-					}
-				}
-			}
-			case "playerDisconnectedRequest" ->
-			{
-				Request<PlayerDisconnectedRequest> playerDisconnectedRequest = this.readRequestJson(event.data, PlayerDisconnectedRequest.class);
-				if (playerDisconnectedRequest != null)
-				{
-					PlayerDisconnectedResponse playerDisconnectedResponse = this.sendApiServerRequest("/buildplate/leave/%s/%s".formatted(this.instanceId, playerDisconnectedRequest.request.playerId()), playerDisconnectedRequest.request, PlayerDisconnectedResponse.class);
-					if (playerDisconnectedResponse != null)
-					{
-						this.sendConnectorResponse("playerDisconnectedResponse", playerDisconnectedRequest.id, playerDisconnectedResponse);
-						this.logger.info("Player {} has disconnected", playerDisconnectedRequest.request.playerId());
-
-						if (playerDisconnectedRequest.request.playerId().equals(this.playerId))
-						{
-							this.logger.info("Host player has disconnected, beginning shutdown");
-							this.beginShutdown();
-						}
-					}
 				}
 			}
 			case "inventoryAdd" ->
@@ -378,6 +362,58 @@ public class Instance
 	}
 
 	@Nullable
+	private Object handleConnectorRequest(@NotNull RequestHandler.Request request)
+	{
+		switch (request.type)
+		{
+			case "playerConnected" ->
+			{
+				PlayerConnectedRequest playerConnectedRequest = this.readJson(request.data, PlayerConnectedRequest.class);
+				if (playerConnectedRequest != null)
+				{
+					if (playerConnectedRequest.uuid().equals(this.playerId))    // TODO: probably remove this eventually and put in API server
+					{
+						PlayerConnectedResponse playerConnectedResponse = this.sendApiServerRequest("/buildplate/join/%s".formatted(this.instanceId), playerConnectedRequest, PlayerConnectedResponse.class);
+						if (playerConnectedResponse != null)
+						{
+							this.logger.info("Player {} has connected", playerConnectedRequest.uuid());
+							return playerConnectedResponse;
+						}
+					}
+					else
+					{
+						return new PlayerConnectedResponse(false, null);
+					}
+				}
+			}
+			case "playerDisconnected" ->
+			{
+				PlayerDisconnectedRequest playerDisconnectedRequest = this.readJson(request.data, PlayerDisconnectedRequest.class);
+				if (playerDisconnectedRequest != null)
+				{
+					PlayerDisconnectedResponse playerDisconnectedResponse = this.sendApiServerRequest("/buildplate/leave/%s/%s".formatted(this.instanceId, playerDisconnectedRequest.playerId()), playerDisconnectedRequest, PlayerDisconnectedResponse.class);
+					if (playerDisconnectedResponse != null)
+					{
+						this.logger.info("Player {} has disconnected", playerDisconnectedRequest.playerId());
+
+						if (playerDisconnectedRequest.playerId().equals(this.playerId))
+						{
+							this.logger.info("Host player has disconnected, beginning shutdown");
+							new Thread(() ->
+							{
+								this.beginShutdown();
+							}).start();
+						}
+
+						return playerDisconnectedResponse;
+					}
+				}
+			}
+		}
+		return null;
+	}
+
+	@Nullable
 	private <T> T readJson(@NotNull String string, @NotNull Class<T> tClass)
 	{
 		try
@@ -390,42 +426,6 @@ public class Instance
 			this.beginShutdown();
 			return null;
 		}
-	}
-
-	private record Request<T>(
-			@NotNull String id,
-			@NotNull T request
-	)
-	{
-	}
-
-	@Nullable
-	private <T> Request<T> readRequestJson(@NotNull String string, @NotNull Class<T> tClass)
-	{
-		RequestResponseMessage requestResponseMessage = this.readJson(string, RequestResponseMessage.class);
-		if (requestResponseMessage != null)
-		{
-			T message = this.readJson(requestResponseMessage.message(), tClass);
-			if (message != null)
-			{
-				return new Request<>(requestResponseMessage.requestId(), message);
-			}
-		}
-		return null;
-	}
-
-	private void sendConnectorResponse(@NotNull String type, @NotNull String requestId, Object messageObject)
-	{
-		Gson gson = new Gson().newBuilder().serializeNulls().create();
-		CompletableFuture<Boolean> completableFuture = this.publisher.publish(this.eventBusQueueName, type, gson.toJson(new RequestResponseMessage(requestId, gson.toJson(messageObject))));
-		completableFuture.thenAccept(success ->
-		{
-			if (!success)
-			{
-				this.logger.error("Event bus publisher error");
-				this.beginShutdown();
-			}
-		});
 	}
 
 	@Nullable

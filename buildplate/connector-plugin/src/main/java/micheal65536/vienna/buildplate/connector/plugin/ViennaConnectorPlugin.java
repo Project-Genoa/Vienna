@@ -19,6 +19,7 @@ import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedResponse
 import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
+import micheal65536.vienna.eventbus.client.RequestSender;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -28,6 +29,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	private String queueName;
 	private EventBusClient eventBusClient;
 	private Publisher publisher;
+	private RequestSender requestSender;
 
 	@Override
 	public void init(@NotNull String arg, @NotNull Logger logger) throws ConnectorPluginException
@@ -55,11 +57,13 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 			throw new ConnectorPluginException("Invalid address string \"%s\"".formatted(arg));
 		}
 		this.publisher = this.eventBusClient.addPublisher();
+		this.requestSender = this.eventBusClient.addRequestSender();
 	}
 
 	@Override
 	public void shutdown() throws ConnectorPluginException
 	{
+		this.requestSender.close();
 		this.publisher.close();
 		this.eventBusClient.close();
 	}
@@ -86,7 +90,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@Nullable
 	public Inventory onPlayerConnected(@NotNull PlayerLoginInfo playerLoginInfo) throws ConnectorPluginException
 	{
-		PlayerConnectedResponse playerConnectedResponse = EventBusHelper.doRequestResponseSync(this.eventBusClient, this.queueName, "playerConnectedRequest", "playerConnectedResponse", new PlayerConnectedRequest(playerLoginInfo.uuid, ""), PlayerConnectedResponse.class); // TODO: join code
+		PlayerConnectedResponse playerConnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerConnected", new PlayerConnectedRequest(playerLoginInfo.uuid, ""), PlayerConnectedResponse.class); // TODO: join code
 		if (!playerConnectedResponse.accepted())
 		{
 			return null;
@@ -115,7 +119,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@NotNull
 	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId, @NotNull Inventory inventory) throws ConnectorPluginException
 	{
-		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.eventBusClient, this.queueName, "playerDisconnectedRequest", "playerDisconnectedResponse", new PlayerDisconnectedRequest(playerId), PlayerDisconnectedResponse.class);
+		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDisconnected", new PlayerDisconnectedRequest(playerId), PlayerDisconnectedResponse.class);
 		return new DisconnectResponse();
 	}
 

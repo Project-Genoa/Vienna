@@ -6,18 +6,17 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.eventbus.client.Publisher;
+import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
 
 import java.util.HashMap;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public final class BuildplateInstancesManager
 {
 	private final EventBusClient eventBusClient;
-	private final Publisher publisher;
 	private final Subscriber subscriber;
+	private final RequestSender requestSender;
 
 	private final HashMap<String, CompletableFuture<Boolean>> pendingInstances = new HashMap<>();
 	private final HashMap<String, InstanceInfo> instances = new HashMap<>();
@@ -25,7 +24,6 @@ public final class BuildplateInstancesManager
 	public BuildplateInstancesManager(@NotNull EventBusClient eventBusClient)
 	{
 		this.eventBusClient = eventBusClient;
-		this.publisher = eventBusClient.addPublisher();
 		this.subscriber = eventBusClient.addSubscriber("buildplates", new Subscriber.SubscriberListener()
 		{
 			@Override
@@ -41,29 +39,35 @@ public final class BuildplateInstancesManager
 				System.exit(1);
 			}
 		});
+		this.requestSender = eventBusClient.addRequestSender();
 	}
 
 	@Nullable
 	public String startBuildplateInstance(@NotNull String playerId, @NotNull String buildplateId, boolean night)
 	{
-		String instanceId = UUID.randomUUID().toString();
+		LogManager.getLogger().info("Requesting buildplate instance for player {} buildplate {}", playerId, buildplateId);
 
-		LogManager.getLogger().info("Requesting buildplate instance {} for player {} buildplate {}", instanceId, playerId, buildplateId);
-
-		CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
-		synchronized (this.pendingInstances)
+		String instanceId = this.requestSender.request("buildplates", "start", new Gson().toJson(new StartRequest(playerId, buildplateId, false, night))).join();
+		if (instanceId == null)
 		{
-			this.pendingInstances.put(instanceId, completableFuture);
+			LogManager.getLogger().error("Buildplate start request was rejected/ignored");
+			return null;
 		}
 
-		if (!this.publisher.publish("buildplates", "startRequest", new Gson().toJson(new StartRequest(instanceId, playerId, buildplateId, false, night))).join())
+		CompletableFuture<Boolean> completableFuture = new CompletableFuture<>();
+		synchronized (this.instances)
 		{
-			LogManager.getLogger().error("Buildplates event bus publisher error");
-			synchronized (this.pendingInstances)
+			if (this.instances.containsKey(instanceId))
 			{
-				this.pendingInstances.remove(instanceId);
+				completableFuture.complete(true);
 			}
-			return null;
+			else
+			{
+				synchronized (this.pendingInstances)
+				{
+					this.pendingInstances.put(instanceId, completableFuture);
+				}
+			}
 		}
 
 		if (!completableFuture.join())
@@ -94,20 +98,17 @@ public final class BuildplateInstancesManager
 				{
 					startNotification = new Gson().fromJson(event.data, StartNotification.class);
 
-					if (startNotification.info != null)
+					synchronized (this.instances)
 					{
-						synchronized (this.instances)
-						{
-							LogManager.getLogger().info("Buildplate instance {} has started", startNotification.instanceId);
-							this.instances.put(startNotification.instanceId, new InstanceInfo(
-									startNotification.instanceId,
-									startNotification.info.playerId,
-									startNotification.info.buildplateId,
-									startNotification.info.address,
-									startNotification.info.port,
-									false
-							));
-						}
+						LogManager.getLogger().info("Buildplate instance {} has started", startNotification.instanceId);
+						this.instances.put(startNotification.instanceId, new InstanceInfo(
+								startNotification.instanceId,
+								startNotification.playerId,
+								startNotification.buildplateId,
+								startNotification.address,
+								startNotification.port,
+								false
+						));
 					}
 
 					synchronized (this.pendingInstances)
@@ -115,7 +116,7 @@ public final class BuildplateInstancesManager
 						CompletableFuture<Boolean> completableFuture = this.pendingInstances.remove(startNotification.instanceId);
 						if (completableFuture != null)
 						{
-							completableFuture.complete(startNotification.info != null);
+							completableFuture.complete(true);
 						}
 					}
 				}
@@ -159,7 +160,6 @@ public final class BuildplateInstancesManager
 	}
 
 	private record StartRequest(
-			@NotNull String instanceId,
 			@NotNull String playerId,
 			@NotNull String buildplateId,
 			boolean survival,
@@ -170,17 +170,12 @@ public final class BuildplateInstancesManager
 
 	private record StartNotification(
 			@NotNull String instanceId,
-			@Nullable Info info
+			@NotNull String playerId,
+			@NotNull String buildplateId,
+			@NotNull String address,
+			int port
 	)
 	{
-		public record Info(
-				@NotNull String playerId,
-				@NotNull String buildplateId,
-				@NotNull String address,
-				int port
-		)
-		{
-		}
 	}
 
 	public record InstanceInfo(

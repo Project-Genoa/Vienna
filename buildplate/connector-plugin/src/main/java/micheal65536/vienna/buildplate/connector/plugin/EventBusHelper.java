@@ -4,12 +4,9 @@ import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.fountain.connector.plugin.ConnectorPlugin;
-import micheal65536.vienna.buildplate.connector.model.RequestResponseMessage;
-import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
-import micheal65536.vienna.eventbus.client.Subscriber;
+import micheal65536.vienna.eventbus.client.RequestSender;
 
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
@@ -54,69 +51,38 @@ public final class EventBusHelper
 	}
 
 	@NotNull
-	public static <T> CompletableFuture<T> doRequestResponse(@NotNull EventBusClient eventBusClient, @NotNull String queueName, @NotNull String requestType, @NotNull String responseType, Object requestObject, @NotNull Class<T> responseClass)
+	public static <T> CompletableFuture<T> doRequestResponse(@NotNull RequestSender requestSender, @NotNull String queueName, @NotNull String requestType, Object requestObject, @NotNull Class<T> responseClass)
 	{
-		String requestId = UUID.randomUUID().toString();
-
 		CompletableFuture<T> completableFuture = new CompletableFuture<>();
 
-		Subscriber subscriber = eventBusClient.addSubscriber(queueName, new Subscriber.SubscriberListener()
+		Gson gson = new Gson().newBuilder().serializeNulls().create();
+		requestSender.request(queueName, requestType, gson.toJson(requestObject)).thenAccept(responseString ->
 		{
-			@Override
-			public void event(@NotNull Subscriber.Event event)
+			if (responseString == null)
 			{
-				if (!completableFuture.isDone())
-				{
-					if (event.type.equals(responseType))
-					{
-						try
-						{
-							RequestResponseMessage requestResponseMessage = new Gson().fromJson(event.data, RequestResponseMessage.class);
-							if (requestResponseMessage.requestId().equals(requestId))
-							{
-								completableFuture.complete(new Gson().fromJson(requestResponseMessage.message(), responseClass));
-							}
-						}
-						catch (Exception exception)
-						{
-							completableFuture.complete(null);
-						}
-					}
-				}
+				completableFuture.complete(null);
 			}
-
-			@Override
-			public void error()
+			else
 			{
-				if (!completableFuture.isDone())
+				try
+				{
+					T response = new Gson().fromJson(responseString, responseClass);
+					completableFuture.complete(response);
+				}
+				catch (Exception exception)
 				{
 					completableFuture.complete(null);
 				}
 			}
 		});
 
-		Publisher publisher = eventBusClient.addPublisher();
-		Gson gson = new Gson().newBuilder().serializeNulls().create();
-		publisher.publish(queueName, requestType, gson.toJson(new RequestResponseMessage(requestId, gson.toJson(requestObject)))).thenAccept(success ->
-		{
-			if (!success)
-			{
-				completableFuture.complete(null);
-			}
-			publisher.close();
-		});
-
-		return completableFuture.thenApply(response ->
-		{
-			subscriber.close();
-			return response;
-		});
+		return completableFuture;
 	}
 
 	@NotNull
-	public static <T> T doRequestResponseSync(@NotNull EventBusClient eventBusClient, @NotNull String queueName, @NotNull String requestType, @NotNull String responseType, Object requestObject, @NotNull Class<T> responseClass) throws ConnectorPlugin.ConnectorPluginException
+	public static <T> T doRequestResponseSync(@NotNull RequestSender requestSender, @NotNull String queueName, @NotNull String requestType, Object requestObject, @NotNull Class<T> responseClass) throws ConnectorPlugin.ConnectorPluginException
 	{
-		CompletableFuture<T> completableFuture = EventBusHelper.doRequestResponse(eventBusClient, queueName, requestType, responseType, requestObject, responseClass);
+		CompletableFuture<T> completableFuture = EventBusHelper.doRequestResponse(requestSender, queueName, requestType, requestObject, responseClass);
 		for (; ; )
 		{
 			try
