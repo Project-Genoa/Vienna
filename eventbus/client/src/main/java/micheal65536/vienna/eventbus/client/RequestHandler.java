@@ -3,6 +3,8 @@ package micheal65536.vienna.eventbus.client;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.concurrent.CompletableFuture;
+
 public final class RequestHandler
 {
 	private final EventBusClient client;
@@ -11,6 +13,8 @@ public final class RequestHandler
 	private final String queueName;
 
 	private final Handler handler;
+
+	private volatile boolean closed = false;
 
 	RequestHandler(@NotNull EventBusClient client, int channelId, @NotNull String queueName, @NotNull Handler handler)
 	{
@@ -22,6 +26,7 @@ public final class RequestHandler
 
 	public void close()
 	{
+		this.closed = true;
 		this.client.removeSubscriber(this.channelId);
 		this.client.sendMessage(this.channelId, "CLOSE");
 	}
@@ -73,16 +78,21 @@ public final class RequestHandler
 			String type = fields[2];
 			String data = fields[3];
 
-			String response = this.handler.request(new Request(timestamp, type, data));
-
-			if (response != null)
+			CompletableFuture<String> responseCompletableFuture = this.handler.requestAsync(new Request(timestamp, type, data));
+			responseCompletableFuture.thenAccept(response ->
 			{
-				this.client.sendMessage(this.channelId, "REP " + requestId + ":" + response);
-			}
-			else
-			{
-				this.client.sendMessage(this.channelId, "NREP " + requestId);
-			}
+				if (!this.closed)
+				{
+					if (response != null)
+					{
+						this.client.sendMessage(this.channelId, "REP " + requestId + ":" + response);
+					}
+					else
+					{
+						this.client.sendMessage(this.channelId, "NREP " + requestId);
+					}
+				}
+			});
 
 			return true;
 		}
@@ -90,11 +100,23 @@ public final class RequestHandler
 
 	void error()
 	{
+		this.closed = true;
 		this.handler.error();
 	}
 
 	public interface Handler
 	{
+		@NotNull
+		default CompletableFuture<String> requestAsync(@NotNull Request request)
+		{
+			CompletableFuture<String> completableFuture = new CompletableFuture<>();
+			new Thread(() ->
+			{
+				completableFuture.complete(this.request(request));
+			}).start();
+			return completableFuture;
+		}
+
 		@Nullable
 		String request(@NotNull Request request);
 
