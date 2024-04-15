@@ -6,7 +6,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.eventbus.client.Publisher;
+import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
 
 import java.util.Arrays;
@@ -16,14 +16,13 @@ import java.util.stream.IntStream;
 
 public final class TappablesManager
 {
-	private final Publisher publisher;
 	private final Subscriber subscriber;
+	private final RequestSender requestSender;
 
 	private final HashMap<String, HashMap<String, Tappable>> tappables = new HashMap<>();
 
 	public TappablesManager(@NotNull EventBusClient eventBusClient)
 	{
-		this.publisher = eventBusClient.addPublisher();
 		this.subscriber = eventBusClient.addSubscriber("tappables", new Subscriber.SubscriberListener()
 		{
 			@Override
@@ -39,6 +38,7 @@ public final class TappablesManager
 				System.exit(1);
 			}
 		});
+		this.requestSender = eventBusClient.addRequestSender();
 	}
 
 	@NotNull
@@ -87,13 +87,11 @@ public final class TappablesManager
 	{
 		int tileX = xToTile(lonToX(lon));
 		int tileY = yToTile(latToY(lat));
-		this.publisher.publish("tappables", "activeTile", new Gson().toJson(new ActiveTileNotification(tileX, tileY, playerId))).thenAccept(success ->
+		String response = this.requestSender.request("tappables", "activeTile", new Gson().toJson(new ActiveTileNotification(tileX, tileY, playerId))).join();
+		if (response == null)
 		{
-			if (!success)
-			{
-				LogManager.getLogger().error("Event bus server rejected active tile notification event");
-			}
-		});
+			LogManager.getLogger().warn("Active tile notification event was rejected/ignored");
+		}
 	}
 
 	private record ActiveTileNotification(
@@ -122,14 +120,6 @@ public final class TappablesManager
 					break;
 				}
 				this.addTappable(tappable);
-			}
-			case "activeTile" ->
-			{
-				break;
-			}
-			default ->
-			{
-				LogManager.getLogger().error("Invalid tappables event bus event type {}", event.type);
 			}
 		}
 	}

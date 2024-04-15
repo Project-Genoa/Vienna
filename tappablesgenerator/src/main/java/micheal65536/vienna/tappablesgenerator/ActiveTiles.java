@@ -3,9 +3,10 @@ package micheal65536.vienna.tappablesgenerator;
 import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.eventbus.client.Subscriber;
+import micheal65536.vienna.eventbus.client.RequestHandler;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -17,15 +18,19 @@ public class ActiveTiles
 	private static final long ACTIVE_TILE_EXPIRY_TIME = 2 * 60 * 1000;
 
 	private final HashMap<Integer, ActiveTile> activeTiles = new HashMap<>();
+	private final ActiveTileListener activeTileListener;
 
-	public ActiveTiles(@NotNull EventBusClient eventBusClient)
+	public ActiveTiles(@NotNull EventBusClient eventBusClient, @NotNull ActiveTileListener activeTileListener)
 	{
-		eventBusClient.addSubscriber("tappables", new Subscriber.SubscriberListener()
+		this.activeTileListener = activeTileListener;
+
+		eventBusClient.addRequestHandler("tappables", new RequestHandler.Handler()
 		{
 			@Override
-			public void event(@NotNull Subscriber.Event event)
+			@Nullable
+			public String request(@NotNull RequestHandler.Request request)
 			{
-				if (event.type.equals("activeTile"))
+				if (request.type.equals("activeTile"))
 				{
 					record ActiveTileNotification(
 							int x,
@@ -38,12 +43,12 @@ public class ActiveTiles
 					ActiveTileNotification activeTileNotification;
 					try
 					{
-						activeTileNotification = new Gson().fromJson(event.data, ActiveTileNotification.class);
+						activeTileNotification = new Gson().fromJson(request.data, ActiveTileNotification.class);
 					}
 					catch (Exception exception)
 					{
 						LogManager.getLogger().error("Could not deserialise active tile notification event", exception);
-						return;
+						return null;
 					}
 
 					long currentTime = System.currentTimeMillis();
@@ -55,6 +60,12 @@ public class ActiveTiles
 							ActiveTiles.this.markTileActive(tileX, tileY, currentTime);
 						}
 					}
+
+					return "";
+				}
+				else
+				{
+					return null;
 				}
 			}
 
@@ -80,6 +91,7 @@ public class ActiveTiles
 		{
 			LogManager.getLogger().info("Tile {},{} is becoming active", tileX, tileY);
 			activeTile = new ActiveTile(tileX, tileY, currentTime, currentTime);
+			this.activeTileListener.active(activeTile);
 		}
 		else
 		{
@@ -93,10 +105,12 @@ public class ActiveTiles
 		for (Iterator<Map.Entry<Integer, ActiveTile>> iterator = this.activeTiles.entrySet().iterator(); iterator.hasNext(); )
 		{
 			Map.Entry<Integer, ActiveTile> entry = iterator.next();
-			if (entry.getValue().latestActiveTime + ACTIVE_TILE_EXPIRY_TIME <= currentTime)
+			ActiveTile activeTile = entry.getValue();
+			if (activeTile.latestActiveTime + ACTIVE_TILE_EXPIRY_TIME <= currentTime)
 			{
-				LogManager.getLogger().info("Tile {},{} is inactive", entry.getValue().tileX, entry.getValue().tileY);
+				LogManager.getLogger().info("Tile {},{} is inactive", activeTile.tileX, activeTile.tileY);
 				iterator.remove();
+				this.activeTileListener.inactive(activeTile);
 			}
 		}
 	}
@@ -108,5 +122,12 @@ public class ActiveTiles
 			long latestActiveTime
 	)
 	{
+	}
+
+	public interface ActiveTileListener
+	{
+		void active(@NotNull ActiveTile activeTile);
+
+		void inactive(@NotNull ActiveTile activeTile);
 	}
 }

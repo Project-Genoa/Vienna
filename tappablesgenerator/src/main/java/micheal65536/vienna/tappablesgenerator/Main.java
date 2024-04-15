@@ -8,6 +8,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.config.Configurator;
+import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.EventBusClientException;
@@ -54,8 +55,22 @@ public class Main
 		LogManager.getLogger().info("Connected to event bus");
 
 		Generator generator = new Generator();
-		ActiveTiles activeTiles = new ActiveTiles(eventBusClient);
-		Spawner spawner = new Spawner(eventBusClient, activeTiles, generator);
-		spawner.run();
+		Spawner[] spawner = new Spawner[1];
+		ActiveTiles activeTiles = new ActiveTiles(eventBusClient, new ActiveTiles.ActiveTileListener()
+		{
+			@Override
+			public void active(ActiveTiles.@NotNull ActiveTile activeTile)
+			{
+				spawner[0].spawnTile(activeTile.tileX(), activeTile.tileY());
+			}
+
+			@Override
+			public void inactive(ActiveTiles.@NotNull ActiveTile activeTile)
+			{
+				// empty
+			}
+		});
+		spawner[0] = new Spawner(eventBusClient, activeTiles, generator);
+		spawner[0].run();
 	}
 }

@@ -55,36 +55,59 @@ public class Spawner
 		}
 	}
 
+	public void spawnTile(int tileX, int tileY)
+	{
+		LogManager.getLogger().info("Spawning tappables for tile {},{}", tileX, tileY);
+
+		long spawnCycleTime = this.spawnCycleTime;
+		int spawnCycleIndex = this.spawnCycleIndex;
+
+		while (spawnCycleTime < System.currentTimeMillis())
+		{
+			spawnCycleTime += SPAWN_INTERVAL;
+			spawnCycleIndex++;
+		}
+
+		this.doSpawnCyclesForTile(tileX, tileY, spawnCycleTime, spawnCycleIndex);
+	}
+
 	private void doSpawnCycle()
 	{
-		this.spawnCycleTime += SPAWN_INTERVAL;
-		this.spawnCycleIndex++;
-
 		ActiveTiles.ActiveTile[] activeTiles = this.activeTiles.getActiveTiles(this.spawnCycleTime);
+
 		LogManager.getLogger().info("Spawning tappables for {} tiles", activeTiles.length);
+
+		while (this.spawnCycleTime < System.currentTimeMillis())
+		{
+			this.spawnCycleTime += SPAWN_INTERVAL;
+			this.spawnCycleIndex++;
+		}
+
 		for (ActiveTiles.ActiveTile activeTile : activeTiles)
 		{
-			int lastSpawnCycle = this.lastSpawnCycleForTile.getOrDefault((activeTile.tileX() << 16) + activeTile.tileY(), 0);
-			int cyclesToSpawn = Math.min(this.spawnCycleIndex - lastSpawnCycle, this.maxTappableLifetimeIntervals);
-			for (int index = 0; index < cyclesToSpawn; index++)
-			{
-				this.doSpawnCycleForTile(activeTile.tileX(), activeTile.tileY(), this.spawnCycleTime - SPAWN_INTERVAL * (cyclesToSpawn - index - 1));
-			}
-			this.lastSpawnCycleForTile.put((activeTile.tileX() << 16) + activeTile.tileY(), this.spawnCycleIndex);
+			this.doSpawnCyclesForTile(activeTile.tileX(), activeTile.tileY(), this.spawnCycleTime, this.spawnCycleIndex);
 		}
 	}
 
-	private void doSpawnCycleForTile(int tileX, int tileY, long currentTime)
+	private void doSpawnCyclesForTile(int tileX, int tileY, long spawnCycleTime, int spawnCycleIndex)
+	{
+		int lastSpawnCycle = this.lastSpawnCycleForTile.getOrDefault((tileX << 16) + tileY, 0);
+		int cyclesToSpawn = Math.min(spawnCycleIndex - lastSpawnCycle, this.maxTappableLifetimeIntervals);
+		for (int index = 0; index < cyclesToSpawn; index++)
+		{
+			this.spawnTappablesForTile(tileX, tileY, spawnCycleTime - SPAWN_INTERVAL * (cyclesToSpawn - index - 1));
+		}
+		this.lastSpawnCycleForTile.put((tileX << 16) + tileY, spawnCycleIndex);
+	}
+
+	private void spawnTappablesForTile(int tileX, int tileY, long currentTime)
 	{
 		for (Tappable tappable : this.generator.generateTappables(tileX, tileY, currentTime))
 		{
-			this.publisher.publish("tappables", "tappableSpawn", new Gson().toJson(tappable)).thenAccept(success ->
+			if (!this.publisher.publish("tappables", "tappableSpawn", new Gson().toJson(tappable)).join())
 			{
-				if (!success)
-				{
-					LogManager.getLogger().error("Event bus server rejected tappable spawn event");
-				}
-			});
+				LogManager.getLogger().error("Event bus server rejected tappable spawn event");
+			}
 		}
 	}
 }
