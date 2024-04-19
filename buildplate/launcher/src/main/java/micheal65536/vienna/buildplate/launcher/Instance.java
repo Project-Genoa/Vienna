@@ -647,6 +647,7 @@ public class Instance
 						.put("doDaylightCycle", "false")
 						.put("doWeatherCycle", "false")
 						.put("doMobSpawning", "false")
+						.put("fountain:doMobDespawn", "false")
 				)
 				.put("WorldGenSettings", new NbtBuilder.Compound()
 						.put("seed", (long) 0)    // TODO
