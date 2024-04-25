@@ -3,11 +3,6 @@ package micheal65536.vienna.buildplate.launcher;
 import com.github.steveice10.opennbt.NBTIO;
 import com.github.steveice10.opennbt.tag.builtin.CompoundTag;
 import com.google.gson.Gson;
-import okhttp3.Call;
-import okhttp3.OkHttpClient;
-import okhttp3.RequestBody;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
@@ -22,24 +17,21 @@ import micheal65536.vienna.buildplate.connector.model.PlayerConnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
-import micheal65536.vienna.db.DatabaseException;
-import micheal65536.vienna.db.EarthDB;
-import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.RequestHandler;
+import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
-import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -51,9 +43,9 @@ import java.util.zip.ZipInputStream;
 public class Instance
 {
 	@NotNull
-	public static Instance run(@NotNull EarthDB earthDB, @NotNull ObjectStoreClient objectStoreClient, @NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString, @NotNull String apiServerAddress, @NotNull String apiServerToken)
+	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
-		Instance instance = new Instance(earthDB, objectStoreClient, eventBusClient, playerId, buildplateId, instanceId, survival, night, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString, apiServerAddress, apiServerToken);
+		Instance instance = new Instance(eventBusClient, playerId, buildplateId, instanceId, survival, night, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
 		new Thread(() ->
 		{
 			instance.run();
@@ -61,8 +53,6 @@ public class Instance
 		return instance;
 	}
 
-	private final EarthDB earthDB;
-	private final ObjectStoreClient objectStoreClient;
 	private final EventBusClient eventBusClient;
 
 	private final String playerId;
@@ -82,18 +72,16 @@ public class Instance
 	private final File connectorPluginJar;
 	private final File baseDir;
 	private final String eventBusConnectionString;
-	private final String apiServerAddress;
-	private final String apiServerToken;
 
 	private Thread thread;
 	private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 	private final Logger logger;
 
+	private RequestSender requestSender = null;
+
 	private final String eventBusQueueName;
 	private Subscriber subscriber = null;
 	private RequestHandler requestHandler = null;
-
-	private final OkHttpClient okHttpClient;
 
 	private File serverWorkDir;
 	private File bridgeWorkDir;
@@ -102,10 +90,8 @@ public class Instance
 	private boolean shuttingDown = false;
 	private final ReentrantLock subprocessLock = new ReentrantLock(true);
 
-	private Instance(@NotNull EarthDB earthDB, @NotNull ObjectStoreClient objectStoreClient, @NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString, @NotNull String apiServerAddress, @NotNull String apiServerToken)
+	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
-		this.earthDB = earthDB;
-		this.objectStoreClient = objectStoreClient;
 		this.eventBusClient = eventBusClient;
 
 		this.playerId = playerId;
@@ -125,17 +111,10 @@ public class Instance
 		this.connectorPluginJar = connectorPluginJar;
 		this.baseDir = baseDir;
 		this.eventBusConnectionString = eventBusConnectionString;
-		this.apiServerAddress = apiServerAddress;
-		this.apiServerToken = apiServerToken;
 
 		this.logger = LogManager.getLogger("Instance %s".formatted(this.instanceId));
 
 		this.eventBusQueueName = "buildplate_" + this.instanceId;
-
-		this.okHttpClient = new OkHttpClient.Builder().addInterceptor(chain ->
-		{
-			return chain.proceed(chain.request().newBuilder().addHeader("Vienna-Buildplate-Instance-Token", this.apiServerToken).build());
-		}).build();
 	}
 
 	private void run()
@@ -147,37 +126,31 @@ public class Instance
 			this.logger.info("Starting for buildplate {} player {}", this.buildplateId, this.playerId);
 			this.logger.info("Using port {} internal port {}", this.port, this.serverInternalPort);
 
+			this.requestSender = this.eventBusClient.addRequestSender();
+
 			this.logger.info("Setting up server");
 
-			Buildplates.Buildplate buildplate;
+			BuildplateLoadResponse buildplateLoadResponse = this.sendEventBusRequestRaw("load", new BuildplateLoadRequest(this.playerId, this.buildplateId), BuildplateLoadResponse.class).join();
+			if (buildplateLoadResponse == null)
+			{
+				this.logger.error("Could not load buildplate information for buildplate {} player {}", this.buildplateId, this.playerId);
+				return;
+			}
+
+			byte[] serverData;
 			try
 			{
-				Buildplates buildplates = (Buildplates) new EarthDB.Query(false)
-						.get("buildplates", this.playerId, Buildplates.class)
-						.execute(this.earthDB)
-						.get("buildplates").value();
-				buildplate = buildplates.getBuildplate(this.buildplateId);
+				serverData = Base64.getDecoder().decode(buildplateLoadResponse.serverDataBase64);
 			}
-			catch (DatabaseException exception)
+			catch (IllegalArgumentException exception)
 			{
-				this.logger.error("Could not load buildplate information", exception);
-				return;
-			}
-			if (buildplate == null)
-			{
-				this.logger.error("Buildplate {} does not exist for player {}", this.buildplateId, this.playerId);
-				return;
-			}
-			byte[] serverData = this.objectStoreClient.get(buildplate.serverDataObjectId).join();
-			if (serverData == null)
-			{
-				this.logger.error("Server data object {} for buildplate {} could not be loaded from object store", buildplate.serverDataObjectId, this.buildplateId);
+				this.logger.error("Buildplate load response contained invalid base64 data");
 				return;
 			}
 
 			try
 			{
-				this.serverWorkDir = this.setupServerFiles(buildplate, serverData);
+				this.serverWorkDir = this.setupServerFiles(serverData);
 				if (this.serverWorkDir == null)
 				{
 					this.logger.error("Could not set up files for server");
@@ -191,7 +164,7 @@ public class Instance
 			}
 			try
 			{
-				this.bridgeWorkDir = this.setupBridgeFiles(buildplate, serverData);
+				this.bridgeWorkDir = this.setupBridgeFiles(serverData);
 				if (this.bridgeWorkDir == null)
 				{
 					this.logger.error("Could not set up files for bridge");
@@ -323,7 +296,7 @@ public class Instance
 				if (worldSavedMessage != null)
 				{
 					this.logger.info("Saving snapshot");
-					this.sendApiServerRequest("/buildplate/snapshot/%s/%s".formatted(this.playerId, this.buildplateId), worldSavedMessage.dataBase64(), null);
+					this.sendEventBusRequest("saved", worldSavedMessage, null);
 				}
 			}
 			case "inventoryAdd" ->
@@ -331,7 +304,7 @@ public class Instance
 				InventoryAddItemMessage inventoryAddItemMessage = this.readJson(event.data, InventoryAddItemMessage.class);
 				if (inventoryAddItemMessage != null)
 				{
-					this.sendApiServerRequest("/buildplate/inventory/%s/%s/add".formatted(this.instanceId, inventoryAddItemMessage.playerId()), inventoryAddItemMessage, null);
+					this.sendEventBusRequest("inventoryAdd", inventoryAddItemMessage, null);
 				}
 			}
 			case "inventoryRemove" ->
@@ -339,7 +312,7 @@ public class Instance
 				InventoryRemoveItemMessage inventoryRemoveItemMessage = this.readJson(event.data, InventoryRemoveItemMessage.class);
 				if (inventoryRemoveItemMessage != null)
 				{
-					this.sendApiServerRequest("/buildplate/inventory/%s/%s/remove".formatted(this.instanceId, inventoryRemoveItemMessage.playerId()), inventoryRemoveItemMessage, null);
+					this.sendEventBusRequest("inventoryRemove", inventoryRemoveItemMessage, null);
 				}
 			}
 			case "inventoryUpdateWear" ->
@@ -347,7 +320,7 @@ public class Instance
 				InventoryUpdateItemWearMessage inventoryUpdateItemWearMessage = this.readJson(event.data, InventoryUpdateItemWearMessage.class);
 				if (inventoryUpdateItemWearMessage != null)
 				{
-					this.sendApiServerRequest("/buildplate/inventory/%s/%s/updateWear".formatted(this.instanceId, inventoryUpdateItemWearMessage.playerId()), inventoryUpdateItemWearMessage, null);
+					this.sendEventBusRequest("inventoryUpdateWear", inventoryUpdateItemWearMessage, null);
 				}
 			}
 			case "inventorySetHotbar" ->
@@ -355,7 +328,7 @@ public class Instance
 				InventorySetHotbarMessage inventorySetHotbarMessage = this.readJson(event.data, InventorySetHotbarMessage.class);
 				if (inventorySetHotbarMessage != null)
 				{
-					this.sendApiServerRequest("/buildplate/inventory/%s/%s/hotbar".formatted(this.instanceId, inventorySetHotbarMessage.playerId()), inventorySetHotbarMessage, null);
+					this.sendEventBusRequest("inventorySetHotbar", inventorySetHotbarMessage, null);
 				}
 			}
 		}
@@ -373,7 +346,7 @@ public class Instance
 				{
 					if (playerConnectedRequest.uuid().equals(this.playerId))    // TODO: probably remove this eventually and put in API server
 					{
-						PlayerConnectedResponse playerConnectedResponse = this.sendApiServerRequest("/buildplate/join/%s".formatted(this.instanceId), playerConnectedRequest, PlayerConnectedResponse.class);
+						PlayerConnectedResponse playerConnectedResponse = this.sendEventBusRequest("playerConnected", playerConnectedRequest, PlayerConnectedResponse.class).join();
 						if (playerConnectedResponse != null)
 						{
 							this.logger.info("Player {} has connected", playerConnectedRequest.uuid());
@@ -391,7 +364,7 @@ public class Instance
 				PlayerDisconnectedRequest playerDisconnectedRequest = this.readJson(request.data, PlayerDisconnectedRequest.class);
 				if (playerDisconnectedRequest != null)
 				{
-					PlayerDisconnectedResponse playerDisconnectedResponse = this.sendApiServerRequest("/buildplate/leave/%s/%s".formatted(this.instanceId, playerDisconnectedRequest.playerId()), playerDisconnectedRequest, PlayerDisconnectedResponse.class);
+					PlayerDisconnectedResponse playerDisconnectedResponse = this.sendEventBusRequest("playerDisconnected", playerDisconnectedRequest, PlayerDisconnectedResponse.class).join();
 					if (playerDisconnectedResponse != null)
 					{
 						this.logger.info("Player {} has disconnected", playerDisconnectedRequest.playerId());
@@ -399,10 +372,7 @@ public class Instance
 						if (playerDisconnectedRequest.playerId().equals(this.playerId))
 						{
 							this.logger.info("Host player has disconnected, beginning shutdown");
-							new Thread(() ->
-							{
-								this.beginShutdown();
-							}).start();
+							this.beginShutdown();
 						}
 
 						return playerDisconnectedResponse;
@@ -428,45 +398,81 @@ public class Instance
 		}
 	}
 
-	@Nullable
-	private <T> T sendApiServerRequest(@NotNull String path, @Nullable Object object, @Nullable Class<T> responseClass)
+	@NotNull
+	private <T> CompletableFuture<T> sendEventBusRequest(@NotNull String type, @NotNull Object object, @Nullable Class<T> responseClass)
 	{
-		return this.sendApiServerRequest(path, new Gson().newBuilder().serializeNulls().create().toJson(object), responseClass);
-	}
-
-	@Nullable
-	private <T> T sendApiServerRequest(@NotNull String path, @NotNull String string, @Nullable Class<T> responseClass)
-	{
-		RequestBody requestBody = RequestBody.create(string.getBytes(StandardCharsets.UTF_8));
-		Call call = this.okHttpClient.newCall(new okhttp3.Request.Builder().url("%s/%s".formatted(this.apiServerAddress, path)).post(requestBody).build());
-		try (Response response = call.execute())
+		record RequestWithBuildplateIds(
+				@NotNull String playerId,
+				@NotNull String buildplateId,
+				@NotNull String instanceId,
+				@NotNull Object request
+		)
 		{
-			ResponseBody responseBody = response.body();
-			if (responseBody == null || response.code() != 200)
+		}
+
+		RequestWithBuildplateIds request = new RequestWithBuildplateIds(this.playerId, this.buildplateId, this.instanceId, object);
+
+		try
+		{
+			return this.requestSender.request("buildplates", type, new Gson().newBuilder().serializeNulls().create().toJson(request)).thenApply(response ->
 			{
-				this.logger.error("API server request failed {} (code {})", path, response.code());
-				this.beginShutdown();
-				return null;
-			}
-			if (responseClass != null)
-			{
-				return new Gson().fromJson(responseBody.string(), responseClass);
-			}
-			else
-			{
-				return null;
-			}
+				if (response == null)
+				{
+					this.logger.error("Event bus request failed (no response)");
+					this.beginShutdown();
+					return null;
+				}
+				if (responseClass != null)
+				{
+					return new Gson().fromJson(response, responseClass);
+				}
+				else
+				{
+					return null;
+				}
+			});
 		}
 		catch (Exception exception)
 		{
-			this.logger.error("API server request failed {}", path, exception);
+			this.logger.error("Event bus request failed", exception);
 			this.beginShutdown();
-			return null;
+			return CompletableFuture.completedFuture(null);
+		}
+	}
+
+	@NotNull
+	private <T> CompletableFuture<T> sendEventBusRequestRaw(@NotNull String type, @NotNull Object object, @Nullable Class<T> responseClass)
+	{
+		try
+		{
+			return this.requestSender.request("buildplates", type, new Gson().newBuilder().serializeNulls().create().toJson(object)).thenApply(response ->
+			{
+				if (response == null)
+				{
+					this.logger.error("Event bus request failed (no response)");
+					this.beginShutdown();
+					return null;
+				}
+				if (responseClass != null)
+				{
+					return new Gson().fromJson(response, responseClass);
+				}
+				else
+				{
+					return null;
+				}
+			});
+		}
+		catch (Exception exception)
+		{
+			this.logger.error("Event bus request failed", exception);
+			this.beginShutdown();
+			return CompletableFuture.completedFuture(null);
 		}
 	}
 
 	@Nullable
-	private File setupServerFiles(@NotNull Buildplates.Buildplate buildplate, byte[] serverData) throws IOException
+	private File setupServerFiles(byte[] serverData) throws IOException
 	{
 		File workDir = new File(this.baseDir, "server");
 		if (!workDir.mkdir())
@@ -704,7 +710,7 @@ public class Instance
 	}
 
 	@Nullable
-	private File setupBridgeFiles(@NotNull Buildplates.Buildplate buildplate, byte[] serverData) throws IOException
+	private File setupBridgeFiles(byte[] serverData) throws IOException
 	{
 		File workDir = new File(this.baseDir, "bridge");
 		if (!workDir.mkdir())
@@ -862,36 +868,39 @@ public class Instance
 
 	private void beginShutdown()
 	{
-		this.subprocessLock.lock();
-
-		if (this.shuttingDown)
+		new Thread(() ->
 		{
-			this.logger.debug("Already shutting down, not beginning shutdown");
-			this.subprocessLock.unlock();
-			return;
-		}
-		this.shuttingDown = true;
-
-		this.logger.info("Beginning shutdown");
-
-		if (this.bridgeProcess != null)
-		{
-			this.logger.info("Waiting for bridge to shut down");
-			this.bridgeProcess.destroy();
-			this.subprocessLock.unlock();
-			int exitCode = waitForProcess(this.bridgeProcess);
 			this.subprocessLock.lock();
-			this.bridgeProcess = null;
-			this.logger.info("Bridge has finished with exit code {}", exitCode);
-		}
 
-		if (this.serverProcess != null)
-		{
-			this.logger.info("Asking the server to shut down");
-			this.serverProcess.destroy();
-		}
+			if (this.shuttingDown)
+			{
+				this.logger.debug("Already shutting down, not beginning shutdown");
+				this.subprocessLock.unlock();
+				return;
+			}
+			this.shuttingDown = true;
 
-		this.subprocessLock.unlock();
+			this.logger.info("Beginning shutdown");
+
+			if (this.bridgeProcess != null)
+			{
+				this.logger.info("Waiting for bridge to shut down");
+				this.bridgeProcess.destroy();
+				this.subprocessLock.unlock();
+				int exitCode = waitForProcess(this.bridgeProcess);
+				this.subprocessLock.lock();
+				this.bridgeProcess = null;
+				this.logger.info("Bridge has finished with exit code {}", exitCode);
+			}
+
+			if (this.serverProcess != null)
+			{
+				this.logger.info("Asking the server to shut down");
+				this.serverProcess.destroy();
+			}
+
+			this.subprocessLock.unlock();
+		}).start();
 	}
 
 	private static int waitForProcess(@NotNull Process process)
@@ -949,5 +958,18 @@ public class Instance
 				continue;
 			}
 		}
+	}
+
+	private record BuildplateLoadRequest(
+			@NotNull String playerId,
+			@NotNull String buildplateId
+	)
+	{
+	}
+
+	private record BuildplateLoadResponse(
+			@NotNull String serverDataBase64
+	)
+	{
 	}
 }

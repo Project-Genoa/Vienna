@@ -4,9 +4,7 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
 import java.io.File;
 import java.io.IOException;
@@ -15,16 +13,12 @@ import java.util.Map;
 
 public class Starter
 {
-	private final EarthDB earthDB;
-	private final ObjectStoreClient objectStoreClient;
 	private final EventBusClient eventBusClient;
 
 	private final String publicAddress;
 	private final String javaCmd;
 	private final File tmpDir;
 	private final String eventBusConnectionString;
-	private final String apiServerAddress;
-	private final String apiServerToken;
 
 	private final File fountainBridgeJar;
 	private final File serverTemplateDir;
@@ -36,18 +30,14 @@ public class Starter
 	private final HashSet<Integer> portsInUse = new HashSet<>();
 	private final HashSet<Integer> serverInternalPortsInUse = new HashSet<>();
 
-	public Starter(@NotNull EarthDB earthDB, @NotNull ObjectStoreClient objectStoreClient, @NotNull EventBusClient eventBusClient, @NotNull String eventBusConnectionString, @NotNull String apiServerAddress, @NotNull String apiServerToken, @NotNull String publicAddress, @NotNull String bridgeJar, @NotNull String serverTemplateDir, @NotNull String fabricJarName, @NotNull String connectorPluginJar)
+	public Starter(@NotNull EventBusClient eventBusClient, @NotNull String eventBusConnectionString, @NotNull String publicAddress, @NotNull String bridgeJar, @NotNull String serverTemplateDir, @NotNull String fabricJarName, @NotNull String connectorPluginJar)
 	{
-		this.earthDB = earthDB;
-		this.objectStoreClient = objectStoreClient;
 		this.eventBusClient = eventBusClient;
 
 		this.publicAddress = publicAddress;
 		this.javaCmd = locateJava();
 		this.tmpDir = new File(System.getProperty("java.io.tmpdir"));
 		this.eventBusConnectionString = eventBusConnectionString;
-		this.apiServerAddress = apiServerAddress;
-		this.apiServerToken = apiServerToken;
 
 		this.fountainBridgeJar = new File(bridgeJar).getAbsoluteFile();
 		this.serverTemplateDir = new File(serverTemplateDir).getAbsoluteFile();
@@ -65,7 +55,7 @@ public class Starter
 		}
 		int port = findPort(this.portsInUse, BASE_PORT);
 		int serverInternalPort = findPort(this.serverInternalPortsInUse, SERVER_INTERNAL_BASE_PORT);
-		Instance instance = Instance.run(this.earthDB, this.objectStoreClient, this.eventBusClient, playerId, buildplateId, instanceId, survival, night, this.publicAddress, port, serverInternalPort, this.javaCmd, this.fountainBridgeJar, this.serverTemplateDir, this.fabricJarName, this.connectorPluginJar, baseDir, this.eventBusConnectionString, this.apiServerAddress, this.apiServerToken);
+		Instance instance = Instance.run(this.eventBusClient, playerId, buildplateId, instanceId, survival, night, this.publicAddress, port, serverInternalPort, this.javaCmd, this.fountainBridgeJar, this.serverTemplateDir, this.fabricJarName, this.connectorPluginJar, baseDir, this.eventBusConnectionString);
 		new Thread(() ->
 		{
 			instance.waitForShutdown();

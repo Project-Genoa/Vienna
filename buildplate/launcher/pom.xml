@@ -86,17 +86,7 @@
 
         <dependency>
             <groupId>micheal65536.vienna</groupId>
-            <artifactId>db</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>micheal65536.vienna</groupId>
             <artifactId>eventbus-client</artifactId>
-            <version>0.0.1-SNAPSHOT</version>
-        </dependency>
-        <dependency>
-            <groupId>micheal65536.vienna</groupId>
-            <artifactId>objectstore-client</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>
         <dependency>
@@ -109,12 +99,6 @@
             <groupId>com.github.steveice10</groupId>
             <artifactId>opennbt</artifactId>
             <version>1.6</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.squareup.okhttp3</groupId>
-            <artifactId>okhttp</artifactId>
-            <version>4.12.0</version>
         </dependency>
 
         <dependency>

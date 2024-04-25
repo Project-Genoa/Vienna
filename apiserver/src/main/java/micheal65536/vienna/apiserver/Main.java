@@ -19,10 +19,10 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.apiserver.routes.AuthenticatedRouter;
-import micheal65536.vienna.apiserver.routes.BuildplateInstanceRouter;
 import micheal65536.vienna.apiserver.routes.SigninRouter;
 import micheal65536.vienna.apiserver.routing.Application;
 import micheal65536.vienna.apiserver.routing.Router;
+import micheal65536.vienna.apiserver.utils.BuildplateInstanceRequestHandler;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
@@ -155,7 +155,7 @@ public class Main
 		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, objectStoreClient, catalog));
 		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
 
-		router.addSubRouter("/buildplate/*", 1, new BuildplateInstanceRouter(earthDB, objectStoreClient, catalog, buildplatePreviewGeneratorCommand));
+		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, catalog, buildplatePreviewGeneratorCommand);
 
 		return application;
 	}
