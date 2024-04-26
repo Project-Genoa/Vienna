@@ -19,5 +19,8 @@
         <module>eventbus/client</module>
         <module>objectstore/server</module>
         <module>objectstore/client</module>
+        <module>utils/http-routing</module>
+        <module>utils/locator</module>
+        <module>utils/cdn</module>
     </modules>
 </project>

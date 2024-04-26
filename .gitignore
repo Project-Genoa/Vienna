@@ -2,5 +2,6 @@
 /buildplate/*/target
 /eventbus/*/target
 /objectstore/*/target
+/utils/*/target
 /.idea
 /.vscode
