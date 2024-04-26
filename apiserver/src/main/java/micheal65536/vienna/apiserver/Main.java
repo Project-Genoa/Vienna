@@ -166,7 +166,7 @@ public class Main
 		File tomcatDir = null;
 		try
 		{
-			tomcatDir = Files.createTempDirectory("earthapi-tomcat-").toFile();
+			tomcatDir = Files.createTempDirectory("vienna-apiserver-tomcat-").toFile();
 		}
 		catch (IOException exception)
 		{
