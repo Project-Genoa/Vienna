@@ -9,6 +9,7 @@ import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
 import micheal65536.vienna.eventbus.client.RequestHandler;
 
+import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -16,6 +17,7 @@ import java.util.concurrent.locks.ReentrantLock;
 public class InstanceManager
 {
 	private final Starter starter;
+	private final PreviewGenerator previewGenerator;
 
 	private final Publisher publisher;
 	private final RequestHandler requestHandler;
@@ -23,9 +25,10 @@ public class InstanceManager
 	private boolean shuttingDown = false;
 	private final ReentrantLock lock = new ReentrantLock(true);
 
-	public InstanceManager(@NotNull EventBusClient eventBusClient, @NotNull Starter starter)
+	public InstanceManager(@NotNull EventBusClient eventBusClient, @NotNull Starter starter, @NotNull PreviewGenerator previewGenerator)
 	{
 		this.starter = starter;
+		this.previewGenerator = previewGenerator;
 
 		this.publisher = eventBusClient.addPublisher();
 
@@ -110,6 +113,38 @@ public class InstanceManager
 					}).start();
 
 					return instanceId;
+				}
+				else if (request.type.equals("preview"))
+				{
+					record PreviewRequest(
+							@NotNull String serverDataBase64,
+							boolean night
+					)
+					{
+					}
+
+					PreviewRequest previewRequest;
+					byte[] serverData;
+					try
+					{
+						previewRequest = new Gson().fromJson(request.data, PreviewRequest.class);
+						serverData = Base64.getDecoder().decode(previewRequest.serverDataBase64);
+					}
+					catch (Exception exception)
+					{
+						LogManager.getLogger().warn("Bad preview request", exception);
+						return null;
+					}
+
+					LogManager.getLogger().info("Generating buildplate preview");
+
+					String preview = InstanceManager.this.previewGenerator.generatePreview(serverData, previewRequest.night);
+					if (preview == null)
+					{
+						LogManager.getLogger().warn("Could not generate preview for buildplate");
+					}
+
+					return preview;
 				}
 				else
 				{

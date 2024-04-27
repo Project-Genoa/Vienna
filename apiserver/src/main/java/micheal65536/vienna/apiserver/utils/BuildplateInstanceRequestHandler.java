@@ -35,22 +35,22 @@ import java.util.stream.Stream;
 
 public final class BuildplateInstanceRequestHandler
 {
-	public static void start(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog, @NotNull String buildplatePreviewGeneratorCommand)
+	public static void start(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
 	{
-		new BuildplateInstanceRequestHandler(earthDB, eventBusClient, objectStoreClient, catalog, buildplatePreviewGeneratorCommand);
+		new BuildplateInstanceRequestHandler(earthDB, eventBusClient, objectStoreClient, catalog);
 	}
 
 	private final EarthDB earthDB;
 	private final ObjectStoreClient objectStoreClient;
 	private final Catalog catalog;
-	private final BuildplatePreviewGenerator buildplatePreviewGenerator;
+	private final BuildplateInstancesManager buildplateInstancesManager;
 
-	private BuildplateInstanceRequestHandler(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog, @NotNull String buildplatePreviewGeneratorCommand)
+	private BuildplateInstanceRequestHandler(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
 	{
 		this.earthDB = earthDB;
 		this.objectStoreClient = objectStoreClient;
 		this.catalog = catalog;
-		this.buildplatePreviewGenerator = new BuildplatePreviewGenerator(buildplatePreviewGeneratorCommand);
+		this.buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);    // TODO: would be nicer to use the same instance as BuildplatesRouter
 
 		RequestHandler requestHandler = eventBusClient.addRequestHandler("buildplates", new RequestHandler.Handler()
 		{
@@ -219,10 +219,10 @@ public final class BuildplateInstanceRequestHandler
 			return false;
 		}
 
-		String preview = this.buildplatePreviewGenerator.generatePreview(buildplateUnsafeForPreviewGenerator, serverData);
+		String preview = this.buildplateInstancesManager.getBuildplatePreview(serverData, buildplateUnsafeForPreviewGenerator.night);
 		if (preview == null)
 		{
-			LogManager.getLogger().warn("Could not generate preview for buildplate");
+			LogManager.getLogger().warn("Could not get preview for buildplate");
 		}
 
 		String serverDataObjectId = this.objectStoreClient.store(serverData).join();

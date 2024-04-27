@@ -67,19 +67,11 @@ public class Main
 				.argName("objectstore")
 				.desc("Object storage address, defaults to localhost:5396")
 				.build());
-		options.addOption(Option.builder()
-				.option("previewGenerator")
-				.hasArg()
-				.argName("command")
-				.required()
-				.desc("Command to run the buildplate preview generator")
-				.build());
 		CommandLine commandLine;
 		int httpPort;
 		String dbConnectionString;
 		String eventBusConnectionString;
 		String objectStoreConnectionString;
-		String buildplatePreviewGeneratorCommand;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
@@ -87,7 +79,6 @@ public class Main
 			dbConnectionString = commandLine.hasOption("db") ? commandLine.getOptionValue("db") : "./earth.db";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
 			objectStoreConnectionString = commandLine.hasOption("objectstore") ? commandLine.getOptionValue("objectstore") : "localhost:5396";
-			buildplatePreviewGeneratorCommand = commandLine.getOptionValue("previewGenerator");
 		}
 		catch (ParseException exception)
 		{
@@ -140,13 +131,13 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to object storage");
 
-		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog, buildplatePreviewGeneratorCommand);
+		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog);
 
 		startServer(httpPort, application);
 	}
 
 	@NotNull
-	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog, @NotNull String buildplatePreviewGeneratorCommand)
+	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
 	{
 		Application application = new Application();
 		Router router = new Router();
@@ -157,7 +148,7 @@ public class Main
 		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
 		router.addSubRouter("/api/v1.1/*", 2, new ResourcePacksRouter());
 
-		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, catalog, buildplatePreviewGeneratorCommand);
+		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, catalog);
 
 		return application;
 	}

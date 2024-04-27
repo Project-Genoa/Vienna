@@ -1,35 +1,39 @@
-package micheal65536.vienna.apiserver.utils;
+package micheal65536.vienna.buildplate.launcher;
 
 import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.db.model.player.Buildplates;
-
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
 
-public final class BuildplatePreviewGenerator
+public final class PreviewGenerator
 {
-	private final String command;
+	private final String javaCmd;
+	private final File fountainJar;
 
-	public BuildplatePreviewGenerator(@NotNull String command)
+	public PreviewGenerator(@NotNull String javaCmd, @NotNull String fountainJar)
 	{
-		this.command = command;
+		this.javaCmd = javaCmd;
+		this.fountainJar = new File(fountainJar).getAbsoluteFile();
 	}
 
 	@Nullable
-	public String generatePreview(@NotNull Buildplates.Buildplate buildplate, byte[] serverData)
+	public String generatePreview(byte[] serverData, boolean isNight)
 	{
-		boolean isNight = buildplate.night;
-
 		byte[] previewBytes;
 		try
 		{
-			Process process = Runtime.getRuntime().exec(this.command);
+			Process process = new ProcessBuilder()
+					.command(this.javaCmd, "-cp", this.fountainJar.getAbsolutePath(), "micheal65536.fountain.preview.PreviewGenerator")
+					.redirectInput(ProcessBuilder.Redirect.PIPE)
+					.redirectOutput(ProcessBuilder.Redirect.PIPE)
+					.redirectError(ProcessBuilder.Redirect.DISCARD)
+					.start();
 			LogManager.getLogger().debug("Started preview generator subprocess with PID {}", process.pid());
 			process.getOutputStream().write(serverData);
 			process.getOutputStream().flush();

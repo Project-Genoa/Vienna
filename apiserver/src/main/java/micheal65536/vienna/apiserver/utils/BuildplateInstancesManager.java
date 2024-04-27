@@ -9,6 +9,7 @@ import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
 
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.concurrent.CompletableFuture;
 
@@ -87,6 +88,20 @@ public final class BuildplateInstancesManager
 		}
 	}
 
+	@Nullable
+	public String getBuildplatePreview(byte[] serverData, boolean night)
+	{
+		LogManager.getLogger().info("Requesting buildplate preview");
+
+		String preview = this.requestSender.request("buildplates", "preview", new Gson().toJson(new PreviewRequest(Base64.getEncoder().encodeToString(serverData), night))).join();
+		if (preview == null)
+		{
+			LogManager.getLogger().error("Preview request was rejected/ignored");
+		}
+
+		return preview;
+	}
+
 	private void handleEvent(@NotNull Subscriber.Event event)
 	{
 		switch (event.type)
@@ -163,6 +178,13 @@ public final class BuildplateInstancesManager
 			@NotNull String playerId,
 			@NotNull String buildplateId,
 			boolean survival,
+			boolean night
+	)
+	{
+	}
+
+	private record PreviewRequest(
+			@NotNull String serverDataBase64,
 			boolean night
 	)
 	{

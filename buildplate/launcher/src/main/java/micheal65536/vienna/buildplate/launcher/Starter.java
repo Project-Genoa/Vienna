@@ -30,12 +30,12 @@ public class Starter
 	private final HashSet<Integer> portsInUse = new HashSet<>();
 	private final HashSet<Integer> serverInternalPortsInUse = new HashSet<>();
 
-	public Starter(@NotNull EventBusClient eventBusClient, @NotNull String eventBusConnectionString, @NotNull String publicAddress, @NotNull String bridgeJar, @NotNull String serverTemplateDir, @NotNull String fabricJarName, @NotNull String connectorPluginJar)
+	public Starter(@NotNull EventBusClient eventBusClient, @NotNull String eventBusConnectionString, @NotNull String publicAddress, @NotNull String javaCmd, @NotNull String bridgeJar, @NotNull String serverTemplateDir, @NotNull String fabricJarName, @NotNull String connectorPluginJar)
 	{
 		this.eventBusClient = eventBusClient;
 
 		this.publicAddress = publicAddress;
-		this.javaCmd = locateJava();
+		this.javaCmd = javaCmd;
 		this.tmpDir = new File(System.getProperty("java.io.tmpdir"));
 		this.eventBusConnectionString = eventBusConnectionString;
 
@@ -88,42 +88,6 @@ public class Starter
 				throw new AssertionError();
 			}
 		}
-	}
-
-	@NotNull
-	private static String locateJava()
-	{
-		LogManager.getLogger().info("Trying to locate Java");
-
-		Map<String, String> env = System.getenv();
-
-		String javaHome = env.getOrDefault("JAVA_HOME", "");
-		if (!javaHome.isEmpty())
-		{
-			LogManager.getLogger().info("Trying JAVA_HOME");
-			try
-			{
-				File file = new File(new File(new File(javaHome), "bin"), "java").getCanonicalFile();
-				if (file.canExecute())
-				{
-					String path = file.getPath();
-					LogManager.getLogger().info("Using Java from JAVA_HOME ({})", path);
-					return path;
-				}
-			}
-			catch (IOException exception)
-			{
-				// empty
-			}
-			LogManager.getLogger().info("Java from JAVA_HOME is not suitable (does not exist or cannot be accessed)");
-		}
-		else
-		{
-			LogManager.getLogger().info("JAVA_HOME is not set");
-		}
-
-		LogManager.getLogger().info("Using \"java\"");
-		return "java";
 	}
 
 	@Nullable

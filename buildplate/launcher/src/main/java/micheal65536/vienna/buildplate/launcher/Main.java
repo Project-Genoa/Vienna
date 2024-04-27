@@ -99,8 +99,10 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to event bus");
 
-		Starter starter = new Starter(eventBusClient, eventBusConnectionString, publicAddress, bridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar);
-		InstanceManager instanceManager = new InstanceManager(eventBusClient, starter);
+		String javaCmd = JavaLocator.locateJava();
+		Starter starter = new Starter(eventBusClient, eventBusConnectionString, publicAddress, javaCmd, bridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar);
+		PreviewGenerator previewGenerator = new PreviewGenerator(javaCmd, bridgeJar);
+		InstanceManager instanceManager = new InstanceManager(eventBusClient, starter, previewGenerator);
 
 		Runtime.getRuntime().addShutdownHook(new Thread(() ->
 		{
