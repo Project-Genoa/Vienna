@@ -34,6 +34,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
@@ -46,10 +47,13 @@ public class Instance
 	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
 		Instance instance = new Instance(eventBusClient, playerId, buildplateId, instanceId, survival, night, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
+		instance.threadStartedSemaphore.acquireUninterruptibly();
 		new Thread(() ->
 		{
 			instance.run();
 		}, "Instance %s".formatted(instanceId)).start();
+		instance.threadStartedSemaphore.acquireUninterruptibly();
+		instance.threadStartedSemaphore.release();
 		return instance;
 	}
 
@@ -74,6 +78,7 @@ public class Instance
 	private final String eventBusConnectionString;
 
 	private Thread thread;
+	private final Semaphore threadStartedSemaphore = new Semaphore(1, true);
 	private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 	private final Logger logger;
 
@@ -120,6 +125,7 @@ public class Instance
 	private void run()
 	{
 		this.thread = Thread.currentThread();
+		this.threadStartedSemaphore.release();
 
 		try
 		{
