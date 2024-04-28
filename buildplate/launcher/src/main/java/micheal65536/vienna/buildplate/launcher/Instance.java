@@ -529,7 +529,7 @@ public class Instance
 				.append("enforce-secure-profile=false\n")
 				.append("spawn-protection=0\n")
 				.append("server-port=%d\n".formatted(this.serverInternalPort))
-				.append("fountain-connector-plugin-jar=%s\n".formatted(this.connectorPluginJar.getAbsolutePath()))
+				.append("fountain-connector-plugin-jar=%s\n".formatted(this.connectorPluginJar.getAbsolutePath().replace("\\", "\\\\")))
 				.append("fountain-connector-plugin-class=micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin\n")
 				.append("fountain-connector-plugin-arg=%s/%s\n".formatted(this.eventBusConnectionString, this.eventBusQueueName))
 				.append("gamemode=%s\n".formatted(this.survival ? "survival" : "creative"))
