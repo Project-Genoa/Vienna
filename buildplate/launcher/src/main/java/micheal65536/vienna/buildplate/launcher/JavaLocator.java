@@ -14,6 +14,10 @@ public final class JavaLocator
 	{
 		LogManager.getLogger().info("Trying to locate Java");
 
+		boolean windows = System.getProperty("os.name").startsWith("Windows");
+
+		String javaName = windows ? "java.exe" : "java";
+
 		Map<String, String> env = System.getenv();
 
 		String javaHome = env.getOrDefault("JAVA_HOME", "");
@@ -22,7 +26,7 @@ public final class JavaLocator
 			LogManager.getLogger().info("Trying JAVA_HOME");
 			try
 			{
-				File file = new File(new File(new File(javaHome), "bin"), "java").getCanonicalFile();
+				File file = new File(new File(new File(javaHome), "bin"), javaName).getCanonicalFile();
 				if (file.canExecute())
 				{
 					String path = file.getPath();
@@ -41,7 +45,7 @@ public final class JavaLocator
 			LogManager.getLogger().info("JAVA_HOME is not set");
 		}
 
-		LogManager.getLogger().info("Using \"java\"");
-		return "java";
+		LogManager.getLogger().info("Using \"%s\"".formatted(javaName));
+		return javaName;
 	}
 }
