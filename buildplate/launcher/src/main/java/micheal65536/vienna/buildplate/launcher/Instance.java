@@ -493,7 +493,7 @@ public class Instance
 			return null;
 		}
 		boolean warnedMissingServerFiles = false;
-		if (!copyServerFile(new File(this.serverTemplateDir, ".fabric/server"), new File(workDir, ".fabric/server"), true))
+		if (!copyServerFile(new File(new File(this.serverTemplateDir, ".fabric"), "server"), new File(new File(workDir, ".fabric"), "server"), true))
 		{
 			if (!warnedMissingServerFiles)
 			{
@@ -800,7 +800,7 @@ public class Instance
 		try
 		{
 			this.serverProcess = new ProcessBuilder()
-					.command(this.javaCmd, "-jar", "./" + this.fabricJarName, "-nogui")
+					.command(this.javaCmd, "-jar", this.fabricJarName, "-nogui")
 					.directory(this.serverWorkDir)
 					.redirectOutput(ProcessBuilder.Redirect.to(new File("log_%s-server".formatted(this.instanceId))))
 					.redirectErrorStream(true)
