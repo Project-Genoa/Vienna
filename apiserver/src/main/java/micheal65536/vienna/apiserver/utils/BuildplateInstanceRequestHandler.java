@@ -304,12 +304,20 @@ public final class BuildplateInstanceRequestHandler
 			else
 			{
 				this.objectStoreClient.delete(serverDataObjectId);
+				if (previewObjectId != null)
+				{
+					this.objectStoreClient.delete(previewObjectId);
+				}
 				return false;
 			}
 		}
 		catch (DatabaseException exception)
 		{
 			this.objectStoreClient.delete(serverDataObjectId);
+			if (previewObjectId != null)
+			{
+				this.objectStoreClient.delete(previewObjectId);
+			}
 
 			throw exception;
 		}
