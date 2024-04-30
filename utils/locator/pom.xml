@@ -25,7 +25,7 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>micheal65536.vienna.apiserver.Main</mainClass>
+                            <mainClass>micheal65536.vienna.utils.locator.Main</mainClass>
                         </manifest>
                         <manifestEntries>
                             <Multi-Release>true</Multi-Release>
