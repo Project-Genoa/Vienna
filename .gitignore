@@ -3,5 +3,6 @@
 /eventbus/*/target
 /objectstore/*/target
 /utils/*/target
+/utils/*/*/target
 /.idea
 /.vscode

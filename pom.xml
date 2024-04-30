@@ -22,5 +22,6 @@
         <module>utils/http-routing</module>
         <module>utils/locator</module>
         <module>utils/cdn</module>
+        <module>utils/tools/buildplate-importer</module>
     </modules>
 </project>
