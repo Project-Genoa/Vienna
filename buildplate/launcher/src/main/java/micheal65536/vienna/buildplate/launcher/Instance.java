@@ -527,6 +527,7 @@ public class Instance
 		String serverProperties = new StringBuilder()
 				.append("online-mode=false\n")
 				.append("enforce-secure-profile=false\n")
+				.append("sync-chunk-writes=false\n")
 				.append("spawn-protection=0\n")
 				.append("server-port=%d\n".formatted(this.serverInternalPort))
 				.append("fountain-connector-plugin-jar=%s\n".formatted(this.connectorPluginJar.getAbsolutePath().replace("\\", "\\\\")))
