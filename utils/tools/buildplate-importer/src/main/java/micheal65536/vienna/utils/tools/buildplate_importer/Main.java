@@ -65,18 +65,18 @@ public class Main
 				.desc("Player ID to import for")
 				.build());
 		options.addOption(Option.builder()
-				.option("worldDir")
+				.option("worldFile")
 				.hasArg()
 				.required()
-				.argName("dir")
-				.desc("World to import")
+				.argName("file")
+				.desc("World file or directory to import")
 				.build());
 		CommandLine commandLine;
 		String dbConnectionString;
 		String objectStoreConnectionString;
 		String eventBusConnectionString;
 		String playerId;
-		String worldDir;
+		String worldFile;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
@@ -84,7 +84,7 @@ public class Main
 			objectStoreConnectionString = commandLine.hasOption("objectstore") ? commandLine.getOptionValue("objectstore") : "localhost:5396";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
 			playerId = commandLine.getOptionValue("playerId");
-			worldDir = commandLine.getOptionValue("worldDir");
+			worldFile = commandLine.getOptionValue("worldFile");
 		}
 		catch (ParseException exception)
 		{
@@ -134,7 +134,7 @@ public class Main
 			eventBusClient = null;
 		}
 
-		byte[] serverData = createServerDataFromWorldDir(worldDir);
+		byte[] serverData = createServerDataFromWorldFile(worldFile);
 		if (serverData == null)
 		{
 			LogManager.getLogger().fatal("Could not get world data");
@@ -156,44 +156,63 @@ public class Main
 		return;
 	}
 
-	private static byte[] createServerDataFromWorldDir(@NotNull String worldDirName)
+	private static byte[] createServerDataFromWorldFile(@NotNull String worldFileName)
 	{
-		File worldDir = new File(worldDirName);
-		if (!worldDir.isDirectory())
+		File worldFile = new File(worldFileName);
+		if (!worldFile.exists())
 		{
-			LogManager.getLogger().error("World directory cannot be accessed");
+			LogManager.getLogger().error("World file/directory does not exist");
 			return null;
 		}
-
-		byte[] data;
-		try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream))
+		if (worldFile.isFile())
 		{
-			for (String dirName : new String[]{"region", "entities"})
+			byte[] data;
+			try (FileInputStream fileInputStream = new FileInputStream(worldFile))
 			{
-				File dir = new File(worldDir, dirName);
-				for (String regionName : new String[]{"r.0.0.mca", "r.0.-1.mca", "r.-1.0.mca", "r.-1.-1.mca"})
-				{
-					ZipEntry zipEntry = new ZipEntry(dirName + "/" + regionName);
-					zipEntry.setMethod(ZipEntry.DEFLATED);
-					zipOutputStream.putNextEntry(zipEntry);
-					try (FileInputStream fileInputStream = new FileInputStream(new File(dir, regionName)))
-					{
-						fileInputStream.transferTo(zipOutputStream);
-					}
-					zipOutputStream.closeEntry();
-				}
+				data = fileInputStream.readAllBytes();
 			}
-
-			zipOutputStream.finish();
-			data = byteArrayOutputStream.toByteArray();
+			catch (IOException exception)
+			{
+				LogManager.getLogger().error("Could not read world file", exception);
+				return null;
+			}
+			return data;
 		}
-		catch (IOException exception)
+		else if (worldFile.isDirectory())
 		{
-			LogManager.getLogger().error("Could not get saved world data from world directory", exception);
+			byte[] data;
+			try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream))
+			{
+				for (String dirName : new String[]{"region", "entities"})
+				{
+					File dir = new File(worldFile, dirName);
+					for (String regionName : new String[]{"r.0.0.mca", "r.0.-1.mca", "r.-1.0.mca", "r.-1.-1.mca"})
+					{
+						ZipEntry zipEntry = new ZipEntry(dirName + "/" + regionName);
+						zipEntry.setMethod(ZipEntry.DEFLATED);
+						zipOutputStream.putNextEntry(zipEntry);
+						try (FileInputStream fileInputStream = new FileInputStream(new File(dir, regionName)))
+						{
+							fileInputStream.transferTo(zipOutputStream);
+						}
+						zipOutputStream.closeEntry();
+					}
+				}
+				zipOutputStream.finish();
+				data = byteArrayOutputStream.toByteArray();
+			}
+			catch (IOException exception)
+			{
+				LogManager.getLogger().error("Could not get saved world data from world directory", exception);
+				return null;
+			}
+			return data;
+		}
+		else
+		{
+			LogManager.getLogger().error("World file/directory cannot be accessed");
 			return null;
 		}
-
-		return data;
 	}
 
 	private static boolean storeBuildplate(@NotNull EarthDB earthDB, @Nullable EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull String playerId, @NotNull String buildplateId, byte[] serverData, long timestamp)
