@@ -406,7 +406,16 @@ public class ObjectStoreClient
 							{
 								return -1;
 							}
-							return length;
+							if (length == 0)
+							{
+								this.currentCommand.completableFuture.complete(new byte[0]);
+								this.sendNextCommand();
+								return 0;
+							}
+							else
+							{
+								return length;
+							}
 						}
 						catch (NumberFormatException exception)
 						{

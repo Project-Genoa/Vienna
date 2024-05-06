@@ -195,7 +195,23 @@ public class NetworkServer
 						{
 							return -1;
 						}
-						return length;
+						if (length == 0)
+						{
+							String id = NetworkServer.this.server.store(new byte[0]);
+							if (id != null)
+							{
+								this.sendMessage("OK " + id);
+							}
+							else
+							{
+								this.sendMessage("ERR");
+							}
+							return 0;
+						}
+						else
+						{
+							return length;
+						}
 					}
 					catch (NumberFormatException exception)
 					{
