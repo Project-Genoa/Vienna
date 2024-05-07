@@ -139,6 +139,7 @@ public final class Rewards
 							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
 						journal.touchItem(id, currentTime);
+						journal.addCollectedItem(id, quantity);
 					}
 				}
 				updateQuery.update("inventory", playerId, inventory);

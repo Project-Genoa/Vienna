@@ -4,7 +4,9 @@ import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.routes.player.BuildplatesRouter;
+import micheal65536.vienna.apiserver.routes.player.ChallengesRouter;
 import micheal65536.vienna.apiserver.routes.player.InventoryRouter;
+import micheal65536.vienna.apiserver.routes.player.JournalRouter;
 import micheal65536.vienna.apiserver.routes.player.ProfileRouter;
 import micheal65536.vienna.apiserver.routes.player.TappablesRouter;
 import micheal65536.vienna.apiserver.routes.player.TokensRouter;
@@ -34,7 +36,9 @@ public class PlayerRouter extends Router
 		this.addSubRouter("/*", 0, new TokensRouter(earthDB));
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
+		this.addSubRouter("/*", 0, new JournalRouter(earthDB));
 		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, eventBusClient, objectStoreClient));
 		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, catalog));
+		this.addSubRouter("/*", 0, new ChallengesRouter(earthDB));
 	}
 }

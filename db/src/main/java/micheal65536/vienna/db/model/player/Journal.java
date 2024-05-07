@@ -23,6 +23,12 @@ public final class Journal
 		return journal;
 	}
 
+	@NotNull
+	public HashMap<String, ItemJournalEntry> getItems()
+	{
+		return new HashMap<>(this.items);
+	}
+
 	@Nullable
 	public ItemJournalEntry getItem(@NotNull String uuid)
 	{
@@ -31,7 +37,6 @@ public final class Journal
 
 	public void touchItem(@NotNull String uuid, long timestamp)
 	{
-		// TODO: figure out amountCollected
 		ItemJournalEntry itemJournalEntry = this.items.getOrDefault(uuid, null);
 		if (itemJournalEntry == null)
 		{
@@ -41,6 +46,21 @@ public final class Journal
 		{
 			this.items.put(uuid, new ItemJournalEntry(itemJournalEntry.firstSeen, timestamp, itemJournalEntry.amountCollected));
 		}
+	}
+
+	// TODO: find out what is supposed to count as a "collected item" - currently we count items from tappables *and* other rewards (e.g. challenge/level rewards, this also currently includes workshop output), but not from buildplates because that would be really difficult to track
+	public void addCollectedItem(@NotNull String uuid, int count)
+	{
+		if (count < 0)
+		{
+			throw new IllegalArgumentException();
+		}
+		ItemJournalEntry itemJournalEntry = this.items.getOrDefault(uuid, null);
+		if (itemJournalEntry == null)
+		{
+			throw new IllegalStateException("Item does not exist in journal, make sure to touch it or otherwise verify that it exists before calling addCollectedItem");
+		}
+		this.items.put(uuid, new ItemJournalEntry(itemJournalEntry.firstSeen, itemJournalEntry.lastSeen, itemJournalEntry.amountCollected + count));
 	}
 
 	public record ItemJournalEntry(
