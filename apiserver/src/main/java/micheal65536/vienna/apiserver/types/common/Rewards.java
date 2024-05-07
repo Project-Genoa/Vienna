@@ -11,7 +11,7 @@ public record Rewards(
 		@NotNull Item[] inventory,
 		@NotNull Buildplate[] buildplates,
 		@NotNull Challenge[] challenges,
-		@NotNull PersonaItem[] personaItems,
+		@NotNull String[] personaItems,
 		@NotNull UtilityBlock[] utilityBlocks
 )
 {
@@ -30,11 +30,6 @@ public record Rewards(
 
 	public record Challenge(
 			@NotNull String id
-	)
-	{
-	}
-
-	public record PersonaItem(
 	)
 	{
 	}

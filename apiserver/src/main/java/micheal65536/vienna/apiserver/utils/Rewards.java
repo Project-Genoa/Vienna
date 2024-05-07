@@ -172,7 +172,7 @@ public final class Rewards
 				this.items.entrySet().stream().map(entry -> new micheal65536.vienna.apiserver.types.common.Rewards.Item(entry.getKey(), entry.getValue())).toArray(micheal65536.vienna.apiserver.types.common.Rewards.Item[]::new),
 				this.buildplates.stream().map(buildplate -> new micheal65536.vienna.apiserver.types.common.Rewards.Buildplate(buildplate)).toArray(micheal65536.vienna.apiserver.types.common.Rewards.Buildplate[]::new),
 				this.challenges.stream().map(challenge -> new micheal65536.vienna.apiserver.types.common.Rewards.Challenge(challenge)).toArray(micheal65536.vienna.apiserver.types.common.Rewards.Challenge[]::new),
-				new micheal65536.vienna.apiserver.types.common.Rewards.PersonaItem[0],
+				new String[0],
 				new micheal65536.vienna.apiserver.types.common.Rewards.UtilityBlock[0]
 		);
 	}
