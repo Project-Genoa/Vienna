@@ -15,7 +15,8 @@ public record Token(
 	public enum Type
 	{
 		@SerializedName("adv_zyki") LEVEL_UP,
-		@SerializedName("redeemtappable") TAPPABLE
+		@SerializedName("redeemtappable") TAPPABLE,
+		@SerializedName("item.unlocked") JOURNAL_ITEM_UNLOCKED
 	}
 
 	public enum Lifetime

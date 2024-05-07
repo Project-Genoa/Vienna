@@ -58,7 +58,8 @@ public final class Tokens
 	{
 		public enum Type
 		{
-			LEVEL_UP
+			LEVEL_UP,
+			JOURNAL_ITEM_UNLOCKED
 		}
 
 		public enum Lifetime

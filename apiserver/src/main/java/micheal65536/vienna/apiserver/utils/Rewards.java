@@ -10,6 +10,7 @@ import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
 import micheal65536.vienna.db.model.player.Profile;
+import micheal65536.vienna.db.model.player.Tokens;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -139,6 +140,11 @@ public final class Rewards
 							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
 						journal.touchItem(id, currentTime);
+						// TODO: should probably wrap this in a "JournalUtils" class so that incrementing the counter and adding the item unlocked token for new items are always handled together, in case this is ever required from somewhere other than Rewards
+						if (journal.getItem(id).amountCollected() == 0)
+						{
+							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.Token(Tokens.Token.Type.JOURNAL_ITEM_UNLOCKED, new Rewards().toDBRewardsModel(), Tokens.Token.Lifetime.PERSISTENT, new MapBuilder<String, String>().put("itemid", id).getMap())));
+						}
 						journal.addCollectedItem(id, quantity);
 					}
 				}
