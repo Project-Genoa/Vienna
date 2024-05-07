@@ -34,7 +34,7 @@ public class EnvironmentSettingsRouter extends Router
 				.put("player_journal_enabled", true)
 				.put("player_stats_enabled", true)
 				.put("activity_log_enabled", true)
-				.put("seasons_enabled", true)
+				.put("seasons_enabled", false)
 				.put("daily_login_enabled", true)
 				.put("store_pdp_enabled", true)
 				.put("hotbar_stacksplitting_enabled", true)
