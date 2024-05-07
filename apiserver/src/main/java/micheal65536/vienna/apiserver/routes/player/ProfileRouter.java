@@ -14,6 +14,7 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Profile;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.stream.IntStream;
 
 public class ProfileRouter extends Router
@@ -22,10 +23,11 @@ public class ProfileRouter extends Router
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/profile/$userId").build(), request ->
 		{
+			// TODO: decide if we should allow requests for profiles of other players
 			try
 			{
 				Profile profile = (Profile) new EarthDB.Query(false)
-						.get("profile", request.getContextData("playerId"), Profile.class)
+						.get("profile", request.getParameter("userId").toLowerCase(Locale.ROOT), Profile.class)
 						.execute(earthDB)
 						.get("profile").value();
 				LevelUtils.Level[] levels = LevelUtils.getLevels();
