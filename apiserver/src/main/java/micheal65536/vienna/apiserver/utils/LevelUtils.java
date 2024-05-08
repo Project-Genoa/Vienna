@@ -7,8 +7,6 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
 
-import java.util.HashMap;
-
 public final class LevelUtils
 {
 	// TODO: load this from data file
@@ -39,7 +37,7 @@ public final class LevelUtils
 				profile.level++;
 				Rewards rewards = levels[profile.level - 2].rewards;
 				updateQuery.then(rewards.toRedeemQuery(playerId, currentTime, catalog));
-				updateQuery.then(TokenUtils.addToken(playerId, new Tokens.Token(Tokens.Token.Type.LEVEL_UP, new Rewards().setLevel(profile.level).toDBRewardsModel(), Tokens.Token.Lifetime.TRANSIENT, new HashMap<>())));
+				updateQuery.then(TokenUtils.addToken(playerId, new Tokens.LevelUpToken(profile.level)));
 			}
 			if (changed)
 			{

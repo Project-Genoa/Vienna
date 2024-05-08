@@ -34,12 +34,7 @@ public class TokensRouter extends Router
 						new MapBuilder<>().put("tokens",
 								Arrays.stream(tokens.getTokens()).collect(HashMap<String, Token>::new, (hashMap, token) ->
 								{
-									hashMap.put(token.id(), new Token(
-											Token.Type.valueOf(token.token().type().name()),
-											new HashMap<>(token.token().properties()),
-											Rewards.fromDBRewardsModel(token.token().rewards()).toApiResponse(),
-											Token.Lifetime.valueOf(token.token().lifetime().name())
-									));
+									hashMap.put(token.id(), tokenToApiResponse(token.token()));
 								}, HashMap::putAll)
 						).getMap()
 				), EarthApiResponse.class);
@@ -88,17 +83,44 @@ public class TokensRouter extends Router
 
 			if (token != null)
 			{
-				return Response.okFromJson(new Token(
-						Token.Type.valueOf(token.type().name()),
-						new HashMap<>(token.properties()),
-						Rewards.fromDBRewardsModel(token.rewards()).toApiResponse(),
-						Token.Lifetime.valueOf(token.lifetime().name())
-				), Token.class);
+				return Response.okFromJson(tokenToApiResponse(token), Token.class);
 			}
 			else
 			{
 				return Response.badRequest();
 			}
 		});
+	}
+
+	@NotNull
+	private static Token tokenToApiResponse(@NotNull Tokens.Token token)
+	{
+		HashMap<String, String> properties = new HashMap<>();
+		switch (token.type)
+		{
+			case JOURNAL_ITEM_UNLOCKED ->
+			{
+				properties.put("itemid", ((Tokens.JournalItemUnlockedToken) token).itemId);
+			}
+		}
+
+		Rewards rewards = switch (token.type)
+		{
+			case LEVEL_UP -> new Rewards().setLevel(((Tokens.LevelUpToken) token).level);
+			default -> new Rewards();
+		};
+
+		Token.Lifetime lifetime = switch (token.type)
+		{
+			case LEVEL_UP -> Token.Lifetime.TRANSIENT;
+			case JOURNAL_ITEM_UNLOCKED -> Token.Lifetime.PERSISTENT;
+		};
+
+		return new Token(
+				Token.Type.valueOf(token.type.name()),
+				properties,
+				rewards.toApiResponse(),
+				lifetime
+		);
 	}
 }

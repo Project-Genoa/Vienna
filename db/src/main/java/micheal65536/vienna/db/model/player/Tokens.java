@@ -1,9 +1,11 @@
 package micheal65536.vienna.db.model.player;
 
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-
-import micheal65536.vienna.db.model.common.Rewards;
 
 import java.util.HashMap;
 
@@ -49,23 +51,65 @@ public final class Tokens
 		return this.tokens.remove(id);
 	}
 
-	public record Token(
-			@NotNull Type type,
-			@NotNull Rewards rewards,
-			@NotNull Lifetime lifetime,
-			@NotNull HashMap<String, String> properties
-	)
+	public static abstract class Token
 	{
+		@NotNull
+		public final Type type;
+
+		private Token(@NotNull Type type)
+		{
+			this.type = type;
+		}
+
 		public enum Type
 		{
 			LEVEL_UP,
 			JOURNAL_ITEM_UNLOCKED
 		}
 
-		public enum Lifetime
+		public static class Deserializer implements JsonDeserializer<Token>
 		{
-			PERSISTENT,
-			TRANSIENT
+			private static class BaseToken extends Token
+			{
+				private BaseToken(@NotNull Type type)
+				{
+					super(type);
+				}
+			}
+
+			@Override
+			public Token deserialize(JsonElement jsonElement, java.lang.reflect.Type type, JsonDeserializationContext jsonDeserializationContext) throws JsonParseException
+			{
+				BaseToken baseToken = jsonDeserializationContext.deserialize(jsonElement, BaseToken.class);
+				return jsonDeserializationContext.deserialize(jsonElement, switch (baseToken.type)
+				{
+					case LEVEL_UP -> LevelUpToken.class;
+					case JOURNAL_ITEM_UNLOCKED -> JournalItemUnlockedToken.class;
+				});
+			}
+		}
+	}
+
+	public static final class LevelUpToken extends Token
+	{
+		public final int level;
+
+		public LevelUpToken(int level)
+		{
+			super(Type.LEVEL_UP);
+			this.level = level;
+		}
+	}
+
+	public static final class JournalItemUnlockedToken extends Token
+	{
+		@NotNull
+		public final String itemId;
+
+		public JournalItemUnlockedToken(@NotNull String itemId)
+		{
+			super(Type.JOURNAL_ITEM_UNLOCKED);
+			this.itemId = itemId;
 		}
 	}
 }
