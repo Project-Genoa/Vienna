@@ -48,7 +48,6 @@ public final class Journal
 		}
 	}
 
-	// TODO: find out what is supposed to count as a "collected item" - currently we count items from tappables *and* other rewards (e.g. challenge/level rewards, this also currently includes workshop output), but not from buildplates because that would be really difficult to track
 	public void addCollectedItem(@NotNull String uuid, int count)
 	{
 		if (count < 0)

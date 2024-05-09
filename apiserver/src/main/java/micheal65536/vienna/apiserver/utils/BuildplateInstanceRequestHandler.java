@@ -24,6 +24,7 @@ import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
+import micheal65536.vienna.db.model.player.Tokens;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.RequestHandler;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
@@ -391,10 +392,21 @@ public final class BuildplateInstanceRequestHandler
 					}
 
 					journal.touchItem(inventoryAddItemMessage.itemId(), timestamp);
+					Tokens.Token journalItemUnlockedToken = null;
+					if (journal.getItem(inventoryAddItemMessage.itemId()).amountCollected() == 0)
+					{
+						journalItemUnlockedToken = new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId());
+					}
+					journal.addCollectedItem(inventoryAddItemMessage.itemId(), inventoryAddItemMessage.count());
 
-					return new EarthDB.Query(true)
+					EarthDB.Query query = new EarthDB.Query(true)
 							.update("inventory", inventoryAddItemMessage.playerId(), inventory)
 							.update("journal", inventoryAddItemMessage.playerId(), journal);
+					if (journalItemUnlockedToken != null)
+					{
+						query.then(TokenUtils.addToken(playerId, journalItemUnlockedToken));
+					}
+					return query;
 				})
 				.execute(this.earthDB);
 		return true;

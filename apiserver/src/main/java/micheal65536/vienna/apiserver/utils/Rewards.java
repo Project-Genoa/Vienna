@@ -140,7 +140,6 @@ public final class Rewards
 							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
 						journal.touchItem(id, currentTime);
-						// TODO: should probably wrap this in a "JournalUtils" class so that incrementing the counter and adding the item unlocked token for new items are always handled together, in case this is ever required from somewhere other than Rewards
 						if (journal.getItem(id).amountCollected() == 0)
 						{
 							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
