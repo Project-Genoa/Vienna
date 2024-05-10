@@ -43,6 +43,8 @@ import java.util.zip.ZipInputStream;
 
 public class Instance
 {
+	private static final long HOST_PLAYER_CONNECT_TIMEOUT = 20000;
+
 	@NotNull
 	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
@@ -94,6 +96,8 @@ public class Instance
 	private Process bridgeProcess = null;
 	private boolean shuttingDown = false;
 	private final ReentrantLock subprocessLock = new ReentrantLock(true);
+
+	private volatile boolean hostPlayerConnected = false;
 
 	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
@@ -295,14 +299,22 @@ public class Instance
 				Instance.this.logger.info("Server is ready");
 				Instance.this.startBridgeProcess();
 				Instance.this.readyFuture.complete(null);
+				Instance.this.startHostPlayerConnectTimeout();
 			}
 			case "saved" ->
 			{
 				WorldSavedMessage worldSavedMessage = this.readJson(event.data, WorldSavedMessage.class);
 				if (worldSavedMessage != null)
 				{
-					this.logger.info("Saving snapshot");
-					this.sendEventBusRequest("saved", worldSavedMessage, null);
+					if (this.hostPlayerConnected)
+					{
+						this.logger.info("Saving snapshot");
+						this.sendEventBusRequest("saved", worldSavedMessage, null);
+					}
+					else
+					{
+						this.logger.info("Not saving snapshot because host player never connected");
+					}
 				}
 			}
 			case "inventoryAdd" ->
@@ -350,18 +362,23 @@ public class Instance
 				PlayerConnectedRequest playerConnectedRequest = this.readJson(request.data, PlayerConnectedRequest.class);
 				if (playerConnectedRequest != null)
 				{
-					if (playerConnectedRequest.uuid().equals(this.playerId))    // TODO: probably remove this eventually and put in API server
+					if (!this.hostPlayerConnected && !playerConnectedRequest.uuid().equals(this.playerId))
 					{
-						PlayerConnectedResponse playerConnectedResponse = this.sendEventBusRequest("playerConnected", playerConnectedRequest, PlayerConnectedResponse.class).join();
-						if (playerConnectedResponse != null)
-						{
-							this.logger.info("Player {} has connected", playerConnectedRequest.uuid());
-							return playerConnectedResponse;
-						}
-					}
-					else
-					{
+						this.logger.info("Rejecting player connection for player {} because the host player must connect first", playerConnectedRequest.uuid());
 						return new PlayerConnectedResponse(false, null);
+					}
+
+					PlayerConnectedResponse playerConnectedResponse = this.sendEventBusRequest("playerConnected", playerConnectedRequest, PlayerConnectedResponse.class).join();
+					if (playerConnectedResponse != null)
+					{
+						this.logger.info("Player {} has connected", playerConnectedRequest.uuid());
+
+						if (!this.hostPlayerConnected && playerConnectedRequest.uuid().equals(this.playerId))
+						{
+							this.hostPlayerConnected = true;
+						}
+
+						return playerConnectedResponse;
 					}
 				}
 			}
@@ -871,6 +888,35 @@ public class Instance
 		}
 
 		this.subprocessLock.unlock();
+	}
+
+	private void startHostPlayerConnectTimeout()
+	{
+		new Thread(() ->
+		{
+			try
+			{
+				Thread.sleep(HOST_PLAYER_CONNECT_TIMEOUT);
+			}
+			catch (InterruptedException exception)
+			{
+				throw new AssertionError(exception);
+			}
+
+			this.subprocessLock.lock();
+			if (this.shuttingDown)
+			{
+				this.subprocessLock.unlock();
+				return;
+			}
+			this.subprocessLock.unlock();
+
+			if (!this.hostPlayerConnected)
+			{
+				this.logger.info("Host player has not connected yet, shutting down");
+				this.beginShutdown();
+			}
+		}).start();
 	}
 
 	private void beginShutdown()

@@ -13,7 +13,6 @@ import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.locks.ReentrantLock;
 
-// TODO: need to deal with instances that are idle for too long with no player connecting
 public class InstanceManager
 {
 	private final Starter starter;
