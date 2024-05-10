@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.db.EarthDB;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
 
@@ -36,6 +37,7 @@ public final class LevelUtils
 				changed = true;
 				profile.level++;
 				Rewards rewards = levels[profile.level - 2].rewards;
+				updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.LevelUpEntry(currentTime, profile.level)));
 				updateQuery.then(rewards.toRedeemQuery(playerId, currentTime, catalog));
 				updateQuery.then(TokenUtils.addToken(playerId, new Tokens.LevelUpToken(profile.level)));
 			}

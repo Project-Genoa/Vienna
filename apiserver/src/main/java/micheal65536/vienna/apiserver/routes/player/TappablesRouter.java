@@ -11,6 +11,7 @@ import micheal65536.vienna.apiserver.types.common.Coordinate;
 import micheal65536.vienna.apiserver.types.common.Rarity;
 import micheal65536.vienna.apiserver.types.common.Token;
 import micheal65536.vienna.apiserver.types.tappables.ActiveLocation;
+import micheal65536.vienna.apiserver.utils.ActivityLogUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.apiserver.utils.Rewards;
@@ -18,6 +19,7 @@ import micheal65536.vienna.apiserver.utils.TappablesManager;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.RedeemedTappables;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 
@@ -119,7 +121,9 @@ public class TappablesRouter extends Router
 							redeemedTappables.prune(request.timestamp);
 
 							query.update("redeemedTappables", playerId, redeemedTappables);
-							query.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog)).then(results2 -> new EarthDB.Query(false).extra("success", true).extra("rewards", results2.getExtra("rewards")));
+							query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.TappableEntry(request.timestamp, rewards.toDBRewardsModel())));
+							query.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+							query.then(results2 -> new EarthDB.Query(false).extra("success", true).extra("rewards", rewards));
 
 							return query;
 						})

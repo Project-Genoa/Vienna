@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Tokens;
 
 import java.lang.reflect.Constructor;
@@ -292,7 +293,10 @@ public final class EarthDB implements AutoCloseable
 					{
 						String json = resultSet.getString("value");
 						int version = resultSet.getInt("version");
-						Object value = new Gson().newBuilder().registerTypeAdapter(Tokens.Token.class, new Tokens.Token.Deserializer()).create().fromJson(json, entry.valueClass);
+						Object value = new Gson().newBuilder()
+								.registerTypeAdapter(Tokens.Token.class, new Tokens.Token.Deserializer())
+								.registerTypeAdapter(ActivityLog.Entry.class, new ActivityLog.Entry.Deserializer())
+								.create().fromJson(json, entry.valueClass);
 						results.getValues.put(entry.type, new Results.Result<>(value, version));
 					}
 					else

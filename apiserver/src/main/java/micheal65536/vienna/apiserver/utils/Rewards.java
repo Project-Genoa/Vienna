@@ -7,6 +7,7 @@ import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
 import micheal65536.vienna.db.model.player.Profile;
@@ -101,6 +102,7 @@ public final class Rewards
 		EarthDB.Query updateQuery = new EarthDB.Query(true);
 		getQuery.then(results ->
 		{
+			boolean checkLevelUp = false;
 			if (this.rubies > 0 || this.experiencePoints > 0)
 			{
 				Profile profile = (Profile) results.get("profile").value();
@@ -116,7 +118,7 @@ public final class Rewards
 
 				if (this.experiencePoints > 0)
 				{
-					updateQuery.then(LevelUtils.checkAndHandlePlayerLevelUp(playerId, currentTime, catalog));
+					checkLevelUp = true;
 				}
 			}
 
@@ -142,6 +144,7 @@ public final class Rewards
 						journal.touchItem(id, currentTime);
 						if (journal.getItem(id).amountCollected() == 0)
 						{
+							updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.JournalItemUnlockedEntry(currentTime, id)));
 							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
 						}
 						journal.addCollectedItem(id, quantity);
@@ -159,6 +162,11 @@ public final class Rewards
 			if (!this.challenges.isEmpty())
 			{
 				// TODO
+			}
+
+			if (checkLevelUp)
+			{
+				updateQuery.then(LevelUtils.checkAndHandlePlayerLevelUp(playerId, currentTime, catalog));
 			}
 
 			return updateQuery;

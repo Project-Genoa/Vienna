@@ -17,6 +17,7 @@ import micheal65536.vienna.apiserver.types.workshop.FinishPrice;
 import micheal65536.vienna.apiserver.types.workshop.OutputItem;
 import micheal65536.vienna.apiserver.types.workshop.State;
 import micheal65536.vienna.apiserver.types.workshop.UnlockPrice;
+import micheal65536.vienna.apiserver.utils.ActivityLogUtils;
 import micheal65536.vienna.apiserver.utils.CraftingCalculator;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
@@ -26,6 +27,7 @@ import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
@@ -453,7 +455,10 @@ public class WorkshopRouter extends Router
 								}
 							}
 
-							return new EarthDB.Query(true).update("crafting", playerId, craftingSlots).then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+							return new EarthDB.Query(true)
+									.update("crafting", playerId, craftingSlots)
+									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.CraftingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())))
+									.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -514,7 +519,10 @@ public class WorkshopRouter extends Router
 								}
 							}
 
-							return new EarthDB.Query(true).update("smelting", playerId, smeltingSlots).then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+							return new EarthDB.Query(true)
+									.update("smelting", playerId, smeltingSlots)
+									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.SmeltingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())))
+									.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);

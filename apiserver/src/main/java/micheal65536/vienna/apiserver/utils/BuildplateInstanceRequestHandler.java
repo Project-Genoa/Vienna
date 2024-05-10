@@ -20,6 +20,7 @@ import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
@@ -392,19 +393,20 @@ public final class BuildplateInstanceRequestHandler
 					}
 
 					journal.touchItem(inventoryAddItemMessage.itemId(), timestamp);
-					Tokens.Token journalItemUnlockedToken = null;
+					boolean journalItemUnlocked = false;
 					if (journal.getItem(inventoryAddItemMessage.itemId()).amountCollected() == 0)
 					{
-						journalItemUnlockedToken = new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId());
+						journalItemUnlocked = true;
 					}
 					journal.addCollectedItem(inventoryAddItemMessage.itemId(), inventoryAddItemMessage.count());
 
 					EarthDB.Query query = new EarthDB.Query(true)
 							.update("inventory", inventoryAddItemMessage.playerId(), inventory)
 							.update("journal", inventoryAddItemMessage.playerId(), journal);
-					if (journalItemUnlockedToken != null)
+					if (journalItemUnlocked)
 					{
-						query.then(TokenUtils.addToken(playerId, journalItemUnlockedToken));
+						query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.JournalItemUnlockedEntry(timestamp, inventoryAddItemMessage.itemId())));
+						query.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId())));
 					}
 					return query;
 				})
