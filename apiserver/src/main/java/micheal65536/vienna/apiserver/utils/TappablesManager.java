@@ -20,6 +20,7 @@ public final class TappablesManager
 	private final RequestSender requestSender;
 
 	private final HashMap<String, HashMap<String, Tappable>> tappables = new HashMap<>();
+	private int pruneCounter = 0;
 
 	public TappablesManager(@NotNull EventBusClient eventBusClient)
 	{
@@ -108,7 +109,6 @@ public final class TappablesManager
 		{
 			case "tappableSpawn" ->
 			{
-				// TODO: prune expired tappables
 				Tappable tappable;
 				try
 				{
@@ -120,6 +120,12 @@ public final class TappablesManager
 					break;
 				}
 				this.addTappable(tappable);
+
+				if (this.pruneCounter++ == 10)
+				{
+					this.pruneCounter = 0;
+					this.pruneTappables(event.timestamp);
+				}
 			}
 		}
 	}
@@ -128,6 +134,17 @@ public final class TappablesManager
 	{
 		String tileId = locationToTileId(tappable.lat, tappable.lon);
 		this.tappables.computeIfAbsent(tileId, tileId1 -> new HashMap<>()).put(tappable.id, tappable);
+	}
+
+	private void pruneTappables(long currentTime)
+	{
+		this.tappables.values().forEach(tileTappables -> tileTappables.entrySet().removeIf(entry ->
+		{
+			Tappable tappable = entry.getValue();
+			long expiresAt = tappable.spawnTime + tappable.validFor;
+			return expiresAt <= currentTime;
+		}));
+		this.tappables.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 	}
 
 	@NotNull
