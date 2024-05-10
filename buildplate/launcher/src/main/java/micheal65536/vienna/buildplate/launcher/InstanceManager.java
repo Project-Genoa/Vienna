@@ -178,7 +178,6 @@ public class InstanceManager
 	public void shutdown()
 	{
 		this.requestHandler.close();
-		this.publisher.close();
 
 		this.lock.lock();
 		this.shuttingDown = true;
@@ -204,5 +203,7 @@ public class InstanceManager
 			}
 		}
 		this.lock.unlock();
+
+		this.publisher.close();
 	}
 }
