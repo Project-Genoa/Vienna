@@ -9,7 +9,8 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
-import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemMessage;
+import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
+import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
 import micheal65536.vienna.buildplate.connector.model.InventorySetHotbarMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryUpdateItemWearMessage;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
@@ -325,14 +326,6 @@ public class Instance
 					this.sendEventBusRequest("inventoryAdd", inventoryAddItemMessage, null);
 				}
 			}
-			case "inventoryRemove" ->
-			{
-				InventoryRemoveItemMessage inventoryRemoveItemMessage = this.readJson(event.data, InventoryRemoveItemMessage.class);
-				if (inventoryRemoveItemMessage != null)
-				{
-					this.sendEventBusRequest("inventoryRemove", inventoryRemoveItemMessage, null);
-				}
-			}
 			case "inventoryUpdateWear" ->
 			{
 				InventoryUpdateItemWearMessage inventoryUpdateItemWearMessage = this.readJson(event.data, InventoryUpdateItemWearMessage.class);
@@ -365,7 +358,7 @@ public class Instance
 					if (!this.hostPlayerConnected && !playerConnectedRequest.uuid().equals(this.playerId))
 					{
 						this.logger.info("Rejecting player connection for player {} because the host player must connect first", playerConnectedRequest.uuid());
-						return new PlayerConnectedResponse(false, null);
+						return new PlayerConnectedResponse(false);
 					}
 
 					PlayerConnectedResponse playerConnectedResponse = this.sendEventBusRequest("playerConnected", playerConnectedRequest, PlayerConnectedResponse.class).join();
@@ -399,6 +392,41 @@ public class Instance
 						}
 
 						return playerDisconnectedResponse;
+					}
+				}
+			}
+			case "getInventory" ->
+			{
+				String playerId = this.readJson(request.data, String.class);
+				if (playerId != null)
+				{
+					InventoryResponse inventoryResponse = this.sendEventBusRequest("getInventory", playerId, InventoryResponse.class).join();
+					if (inventoryResponse != null)
+					{
+						return inventoryResponse;
+					}
+				}
+			}
+			case "inventoryRemove" ->
+			{
+				InventoryRemoveItemRequest inventoryRemoveItemRequest = this.readJson(request.data, InventoryRemoveItemRequest.class);
+				if (inventoryRemoveItemRequest != null)
+				{
+					if (inventoryRemoveItemRequest.instanceId() != null)
+					{
+						Boolean success = this.sendEventBusRequest("inventoryRemove", inventoryRemoveItemRequest, Boolean.class).join();
+						if (success != null)
+						{
+							return success;
+						}
+					}
+					else
+					{
+						Integer removedCount = this.sendEventBusRequest("inventoryRemove", inventoryRemoveItemRequest, Integer.class).join();
+						if (removedCount != null)
+						{
+							return removedCount;
+						}
 					}
 				}
 			}

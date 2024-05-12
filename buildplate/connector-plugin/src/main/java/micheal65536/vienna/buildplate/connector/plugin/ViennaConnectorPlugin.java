@@ -1,7 +1,6 @@
 package micheal65536.vienna.buildplate.connector.plugin;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import micheal65536.fountain.connector.plugin.ConnectorPlugin;
 import micheal65536.fountain.connector.plugin.DisconnectResponse;
@@ -9,7 +8,8 @@ import micheal65536.fountain.connector.plugin.Inventory;
 import micheal65536.fountain.connector.plugin.Logger;
 import micheal65536.fountain.connector.plugin.PlayerLoginInfo;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
-import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemMessage;
+import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
+import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
 import micheal65536.vienna.buildplate.connector.model.InventorySetHotbarMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryUpdateItemWearMessage;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
@@ -87,25 +87,36 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	}
 
 	@Override
-	@Nullable
-	public Inventory onPlayerConnected(@NotNull PlayerLoginInfo playerLoginInfo) throws ConnectorPluginException
+	public boolean onPlayerConnected(@NotNull PlayerLoginInfo playerLoginInfo) throws ConnectorPluginException
 	{
 		PlayerConnectedResponse playerConnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerConnected", new PlayerConnectedRequest(playerLoginInfo.uuid, ""), PlayerConnectedResponse.class); // TODO: join code
 		if (!playerConnectedResponse.accepted())
 		{
-			return null;
+			return false;
 		}
-		if (playerConnectedResponse.inventory() == null)
-		{
-			throw new ConnectorPluginException("Bad response data");
-		}
+		return true;
+	}
+
+	@Override
+	@NotNull
+	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId) throws ConnectorPluginException
+	{
+		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDisconnected", new PlayerDisconnectedRequest(playerId), PlayerDisconnectedResponse.class);
+		return new DisconnectResponse();
+	}
+
+	@Override
+	@NotNull
+	public Inventory onPlayerGetInventory(@NotNull String playerId) throws ConnectorPluginException
+	{
+		InventoryResponse inventoryResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "getInventory", playerId, InventoryResponse.class);
 		Inventory inventory;
 		try
 		{
 			inventory = new Inventory(
-					Arrays.stream(playerConnectedResponse.inventory().items()).filter(item -> item.instanceId() == null).map(item -> new Inventory.StackableItem(item.id(), item.count())).toArray(Inventory.StackableItem[]::new),
-					Arrays.stream(playerConnectedResponse.inventory().items()).filter(item -> item.instanceId() != null).map(item -> new Inventory.NonStackableItem(item.id(), item.instanceId(), item.wear())).toArray(Inventory.NonStackableItem[]::new),
-					Arrays.stream(playerConnectedResponse.inventory().hotbar()).map(hotbarItem -> hotbarItem != null ? (hotbarItem.instanceId() != null ? new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.instanceId()) : new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.count())) : null).toArray(Inventory.HotbarItem[]::new)
+					Arrays.stream(inventoryResponse.items()).filter(item -> item.instanceId() == null).map(item -> new Inventory.StackableItem(item.id(), item.count())).toArray(Inventory.StackableItem[]::new),
+					Arrays.stream(inventoryResponse.items()).filter(item -> item.instanceId() != null).map(item -> new Inventory.NonStackableItem(item.id(), item.instanceId(), item.wear())).toArray(Inventory.NonStackableItem[]::new),
+					Arrays.stream(inventoryResponse.hotbar()).map(hotbarItem -> hotbarItem != null ? (hotbarItem.instanceId() != null ? new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.instanceId()) : new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.count())) : null).toArray(Inventory.HotbarItem[]::new)
 			);
 		}
 		catch (IllegalArgumentException exception)
@@ -113,14 +124,6 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 			throw new ConnectorPluginException("Bad inventory data", exception);
 		}
 		return inventory;
-	}
-
-	@Override
-	@NotNull
-	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId, @NotNull Inventory inventory) throws ConnectorPluginException
-	{
-		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDisconnected", new PlayerDisconnectedRequest(playerId), PlayerDisconnectedResponse.class);
-		return new DisconnectResponse();
 	}
 
 	@Override
@@ -136,15 +139,15 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	}
 
 	@Override
-	public void onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, int count) throws ConnectorPluginException
+	public int onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, int count) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventoryRemove", new InventoryRemoveItemMessage(playerId, itemId, count, null));
+		return EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "inventoryRemove", new InventoryRemoveItemRequest(playerId, itemId, count, null), Integer.class);
 	}
 
 	@Override
-	public void onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, @NotNull String instanceId) throws ConnectorPluginException
+	public boolean onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, @NotNull String instanceId) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventoryRemove", new InventoryRemoveItemMessage(playerId, itemId, 1, instanceId));
+		return EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "inventoryRemove", new InventoryRemoveItemRequest(playerId, itemId, 1, instanceId), Boolean.class);
 	}
 
 	@Override

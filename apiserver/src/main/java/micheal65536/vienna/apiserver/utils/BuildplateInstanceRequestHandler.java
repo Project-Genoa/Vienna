@@ -9,7 +9,8 @@ import org.jetbrains.annotations.Nullable;
 import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
-import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemMessage;
+import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
+import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
 import micheal65536.vienna.buildplate.connector.model.InventorySetHotbarMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryUpdateItemWearMessage;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
@@ -104,6 +105,16 @@ public final class BuildplateInstanceRequestHandler
 							PlayerDisconnectedResponse playerDisconnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerDisconnected(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
 							return playerDisconnectedResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(playerDisconnectedResponse) : null;
 						}
+						case "getInventory" ->
+						{
+							RequestWithBuildplateId<String> requestWithBuildplateId = readRequest(request.data, String.class);
+							if (requestWithBuildplateId == null)
+							{
+								return null;
+							}
+							InventoryResponse inventoryResponse = BuildplateInstanceRequestHandler.this.handleGetInventory(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							return inventoryResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(inventoryResponse) : null;
+						}
 						case "inventoryAdd" ->
 						{
 							RequestWithBuildplateId<InventoryAddItemMessage> requestWithBuildplateId = readRequest(request.data, InventoryAddItemMessage.class);
@@ -115,12 +126,13 @@ public final class BuildplateInstanceRequestHandler
 						}
 						case "inventoryRemove" ->
 						{
-							RequestWithBuildplateId<InventoryRemoveItemMessage> requestWithBuildplateId = readRequest(request.data, InventoryRemoveItemMessage.class);
+							RequestWithBuildplateId<InventoryRemoveItemRequest> requestWithBuildplateId = readRequest(request.data, InventoryRemoveItemRequest.class);
 							if (requestWithBuildplateId == null)
 							{
 								return null;
 							}
-							return BuildplateInstanceRequestHandler.this.handleInventoryRemove(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request) ? "" : null;
+							Object response = BuildplateInstanceRequestHandler.this.handleInventoryRemove(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							return response != null ? new Gson().toJson(response) : null;
 						}
 						case "inventoryUpdateWear" ->
 						{
@@ -330,26 +342,8 @@ public final class BuildplateInstanceRequestHandler
 	{
 		// TODO: check join code etc.
 
-		EarthDB.Results results = new EarthDB.Query(false)
-				.get("inventory", playerConnectedRequest.uuid(), Inventory.class)
-				.get("hotbar", playerConnectedRequest.uuid(), Hotbar.class)
-				.execute(this.earthDB);
-		Inventory inventory = (Inventory) results.get("inventory").value();
-		Hotbar hotbar = (Hotbar) results.get("hotbar").value();
-
 		PlayerConnectedResponse playerConnectedResponse = new PlayerConnectedResponse(
-				true,
-				new PlayerConnectedResponse.Inventory(
-						Stream.concat(
-								Arrays.stream(inventory.getStackableItems())
-										.map(item -> new PlayerConnectedResponse.Inventory.Item(item.id(), item.count(), null, 0)),
-								Arrays.stream(inventory.getNonStackableItems())
-										.mapMulti((item, consumer) -> Arrays.stream(item.instances())
-												.map(instance -> new PlayerConnectedResponse.Inventory.Item(item.id(), 1, instance.instanceId(), instance.wear()))
-												.forEach(consumer))
-						).filter(item -> item.count() > 0).toArray(PlayerConnectedResponse.Inventory.Item[]::new),
-						Arrays.stream(hotbar.items).map(item -> item != null && item.count() > 0 ? new PlayerConnectedResponse.Inventory.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(PlayerConnectedResponse.Inventory.HotbarItem[]::new)
-				)
+				true
 		);
 
 		return playerConnectedResponse;
@@ -361,6 +355,29 @@ public final class BuildplateInstanceRequestHandler
 		// TODO
 
 		return new PlayerDisconnectedResponse();
+	}
+
+	@Nullable
+	private InventoryResponse handleGetInventory(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull String requestedInventoryPlayerId) throws DatabaseException
+	{
+		EarthDB.Results results = new EarthDB.Query(false)
+				.get("inventory", requestedInventoryPlayerId, Inventory.class)
+				.get("hotbar", requestedInventoryPlayerId, Hotbar.class)
+				.execute(this.earthDB);
+		Inventory inventory = (Inventory) results.get("inventory").value();
+		Hotbar hotbar = (Hotbar) results.get("hotbar").value();
+
+		return new InventoryResponse(
+				Stream.concat(
+						Arrays.stream(inventory.getStackableItems())
+								.map(item -> new InventoryResponse.Item(item.id(), item.count(), null, 0)),
+						Arrays.stream(inventory.getNonStackableItems())
+								.mapMulti((item, consumer) -> Arrays.stream(item.instances())
+										.map(instance -> new InventoryResponse.Item(item.id(), 1, instance.instanceId(), instance.wear()))
+										.forEach(consumer))
+				).filter(item -> item.count() > 0).toArray(InventoryResponse.Item[]::new),
+				Arrays.stream(hotbar.items).map(item -> item != null && item.count() > 0 ? new InventoryResponse.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(InventoryResponse.HotbarItem[]::new)
+		);
 	}
 
 	private boolean handleInventoryAdd(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryAddItemMessage inventoryAddItemMessage, long timestamp) throws DatabaseException
@@ -414,44 +431,57 @@ public final class BuildplateInstanceRequestHandler
 		return true;
 	}
 
-	private boolean handleInventoryRemove(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryRemoveItemMessage inventoryRemoveItemMessage) throws DatabaseException
+	@Nullable
+	private Object handleInventoryRemove(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryRemoveItemRequest inventoryRemoveItemRequest) throws DatabaseException
 	{
 		EarthDB.Results results = new EarthDB.Query(true)
-				.get("inventory", inventoryRemoveItemMessage.playerId(), Inventory.class)
-				.get("hotbar", inventoryRemoveItemMessage.playerId(), Hotbar.class)
+				.get("inventory", inventoryRemoveItemRequest.playerId(), Inventory.class)
+				.get("hotbar", inventoryRemoveItemRequest.playerId(), Hotbar.class)
 				.then(results1 ->
 				{
 					Inventory inventory = (Inventory) results1.get("inventory").value();
 					Hotbar hotbar = (Hotbar) results1.get("hotbar").value();
 
-					if (inventoryRemoveItemMessage.instanceId() != null)
+					Object result;
+					if (inventoryRemoveItemRequest.instanceId() != null)
 					{
-						if (inventory.takeItems(inventoryRemoveItemMessage.itemId(), new String[]{inventoryRemoveItemMessage.instanceId()}) == null)
+						if (inventory.takeItems(inventoryRemoveItemRequest.itemId(), new String[]{inventoryRemoveItemRequest.instanceId()}) == null)
 						{
-							LogManager.getLogger().warn("Buildplate instance {} attempted to remove item {} {} from player {} that is not in inventory", instanceId, inventoryRemoveItemMessage.itemId(), inventoryRemoveItemMessage.instanceId(), inventoryRemoveItemMessage.playerId());
+							LogManager.getLogger().warn("Buildplate instance {} attempted to remove item {} {} from player {} that is not in inventory", instanceId, inventoryRemoveItemRequest.itemId(), inventoryRemoveItemRequest.instanceId(), inventoryRemoveItemRequest.playerId());
+							result = false;
+						}
+						else
+						{
+							result = true;
 						}
 					}
 					else
 					{
-						if (!inventory.takeItems(inventoryRemoveItemMessage.itemId(), inventoryRemoveItemMessage.count()))
+						if (inventory.takeItems(inventoryRemoveItemRequest.itemId(), inventoryRemoveItemRequest.count()))
 						{
-							int count = inventory.getItemCount(inventoryRemoveItemMessage.itemId());
-							if (!inventory.takeItems(inventoryRemoveItemMessage.itemId(), count))
+							result = inventoryRemoveItemRequest.count();
+						}
+						else
+						{
+							int count = inventory.getItemCount(inventoryRemoveItemRequest.itemId());
+							if (!inventory.takeItems(inventoryRemoveItemRequest.itemId(), count))
 							{
 								count = 0;
 							}
-							LogManager.getLogger().warn("Buildplate instance {} attempted to remove item {} {} from player {} that is not in inventory", instanceId, inventoryRemoveItemMessage.itemId(), inventoryRemoveItemMessage.count() - count, inventoryRemoveItemMessage.playerId());
+							LogManager.getLogger().warn("Buildplate instance {} attempted to remove item {} {} from player {} that is not in inventory", instanceId, inventoryRemoveItemRequest.itemId(), inventoryRemoveItemRequest.count() - count, inventoryRemoveItemRequest.playerId());
+							result = count;
 						}
 					}
 
 					hotbar.limitToInventory(inventory);
 
 					return new EarthDB.Query(true)
-							.update("inventory", inventoryRemoveItemMessage.playerId(), inventory)
-							.update("hotbar", inventoryRemoveItemMessage.playerId(), hotbar);
+							.update("inventory", inventoryRemoveItemRequest.playerId(), inventory)
+							.update("hotbar", inventoryRemoveItemRequest.playerId(), hotbar)
+							.extra("result", result);
 				})
 				.execute(this.earthDB);
-		return true;
+		return results.getExtra("result");
 	}
 
 	private boolean handleInventoryUpdateWear(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryUpdateItemWearMessage inventoryUpdateItemWearMessage) throws DatabaseException
