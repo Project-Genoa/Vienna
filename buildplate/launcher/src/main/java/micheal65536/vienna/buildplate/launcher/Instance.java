@@ -8,10 +8,12 @@ import org.apache.logging.log4j.Logger;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.buildplate.connector.model.ConnectorPluginArg;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
 import micheal65536.vienna.buildplate.connector.model.InventorySetHotbarMessage;
+import micheal65536.vienna.buildplate.connector.model.InventoryType;
 import micheal65536.vienna.buildplate.connector.model.InventoryUpdateItemWearMessage;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedResponse;
@@ -78,7 +80,8 @@ public class Instance
 	private final String fabricJarName;
 	private final File connectorPluginJar;
 	private final File baseDir;
-	private final String eventBusConnectionString;
+	private final String eventBusQueueName;
+	private final String connectorPluginArgString;
 
 	private Thread thread;
 	private final Semaphore threadStartedSemaphore = new Semaphore(1, true);
@@ -87,7 +90,6 @@ public class Instance
 
 	private RequestSender requestSender = null;
 
-	private final String eventBusQueueName;
 	private Subscriber subscriber = null;
 	private RequestHandler requestHandler = null;
 
@@ -120,11 +122,14 @@ public class Instance
 		this.fabricJarName = fabricJarName;
 		this.connectorPluginJar = connectorPluginJar;
 		this.baseDir = baseDir;
-		this.eventBusConnectionString = eventBusConnectionString;
+		this.eventBusQueueName = "buildplate_" + this.instanceId;
+		this.connectorPluginArgString = new Gson().newBuilder().serializeNulls().create().toJson(new ConnectorPluginArg(
+				eventBusConnectionString,
+				this.eventBusQueueName,
+				InventoryType.SYNCED
+		), ConnectorPluginArg.class);
 
 		this.logger = LogManager.getLogger("Instance %s".formatted(this.instanceId));
-
-		this.eventBusQueueName = "buildplate_" + this.instanceId;
 	}
 
 	private void run()
@@ -358,7 +363,7 @@ public class Instance
 					if (!this.hostPlayerConnected && !playerConnectedRequest.uuid().equals(this.playerId))
 					{
 						this.logger.info("Rejecting player connection for player {} because the host player must connect first", playerConnectedRequest.uuid());
-						return new PlayerConnectedResponse(false);
+						return new PlayerConnectedResponse(false, null);
 					}
 
 					PlayerConnectedResponse playerConnectedResponse = this.sendEventBusRequest("playerConnected", playerConnectedRequest, PlayerConnectedResponse.class).join();
@@ -577,7 +582,7 @@ public class Instance
 				.append("server-port=%d\n".formatted(this.serverInternalPort))
 				.append("fountain-connector-plugin-jar=%s\n".formatted(this.connectorPluginJar.getAbsolutePath().replace("\\", "\\\\")))
 				.append("fountain-connector-plugin-class=micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin\n")
-				.append("fountain-connector-plugin-arg=%s/%s\n".formatted(this.eventBusConnectionString, this.eventBusQueueName))
+				.append("fountain-connector-plugin-arg=%s\n".formatted(this.connectorPluginArgString))
 				.append("gamemode=%s\n".formatted(this.survival ? "survival" : "creative"))
 				.toString();
 		Files.writeString(new File(workDir, "server.properties").toPath(), serverProperties, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
@@ -889,7 +894,7 @@ public class Instance
 							"-serverPort", Integer.toString(this.serverInternalPort),
 							"-connectorPluginJar", this.connectorPluginJar.getAbsolutePath(),
 							"-connectorPluginClass", "micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin",
-							"-connectorPluginArg", this.eventBusConnectionString + "/" + this.eventBusQueueName)
+							"-connectorPluginArg", this.connectorPluginArgString)
 					.directory(this.bridgeWorkDir)
 					.redirectOutput(ProcessBuilder.Redirect.to(new File("log_%s-bridge".formatted(this.instanceId))))
 					.redirectErrorStream(true)

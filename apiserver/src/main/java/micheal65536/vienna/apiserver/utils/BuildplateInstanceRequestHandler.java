@@ -342,8 +342,11 @@ public final class BuildplateInstanceRequestHandler
 	{
 		// TODO: check join code etc.
 
+		// TODO: initial inventory contents based on instance type (build, play, adventure, etc.)
+
 		PlayerConnectedResponse playerConnectedResponse = new PlayerConnectedResponse(
-				true
+				true,
+				null
 		);
 
 		return playerConnectedResponse;

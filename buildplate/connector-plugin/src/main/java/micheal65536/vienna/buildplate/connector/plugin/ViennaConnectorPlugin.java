@@ -1,5 +1,6 @@
 package micheal65536.vienna.buildplate.connector.plugin;
 
+import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.fountain.connector.plugin.ConnectorPlugin;
@@ -7,11 +8,9 @@ import micheal65536.fountain.connector.plugin.DisconnectResponse;
 import micheal65536.fountain.connector.plugin.Inventory;
 import micheal65536.fountain.connector.plugin.Logger;
 import micheal65536.fountain.connector.plugin.PlayerLoginInfo;
-import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
-import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
+import micheal65536.vienna.buildplate.connector.model.ConnectorPluginArg;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
-import micheal65536.vienna.buildplate.connector.model.InventorySetHotbarMessage;
-import micheal65536.vienna.buildplate.connector.model.InventoryUpdateItemWearMessage;
+import micheal65536.vienna.buildplate.connector.model.InventoryType;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedRequest;
@@ -21,8 +20,8 @@ import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
 import micheal65536.vienna.eventbus.client.RequestSender;
 
-import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 
 public final class ViennaConnectorPlugin implements ConnectorPlugin
 {
@@ -31,33 +30,36 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	private Publisher publisher;
 	private RequestSender requestSender;
 
+	private InventoryType inventoryType;
+
+	private final HashMap<String, PlayerInventory> playerInventories = new HashMap<>();
+
 	@Override
 	public void init(@NotNull String arg, @NotNull Logger logger) throws ConnectorPluginException
 	{
+		ConnectorPluginArg connectorPluginArg;
 		try
 		{
-			String[] parts = arg.split("/", 2);
-			if (parts.length != 2)
-			{
-				throw new IllegalArgumentException();
-			}
-			String address = parts[0];
-			this.queueName = parts[1];
-			try
-			{
-				this.eventBusClient = EventBusClient.create(!address.isEmpty() ? address : "localhost:5532");
-			}
-			catch (EventBusClient.ConnectException exception)
-			{
-				throw new ConnectorPluginException(exception);
-			}
+			connectorPluginArg = new Gson().fromJson(arg, ConnectorPluginArg.class);
 		}
-		catch (IllegalArgumentException exception)
+		catch (Exception exception)
 		{
-			throw new ConnectorPluginException("Invalid address string \"%s\"".formatted(arg));
+			throw new ConnectorPluginException("Invalid connector plugin arg string");
 		}
+
+		try
+		{
+			this.eventBusClient = EventBusClient.create(connectorPluginArg.eventBusAddress());
+		}
+		catch (EventBusClient.ConnectException exception)
+		{
+			throw new ConnectorPluginException(exception);
+		}
+		this.queueName = connectorPluginArg.eventBusQueueName();
 		this.publisher = this.eventBusClient.addPublisher();
 		this.requestSender = this.eventBusClient.addRequestSender();
+
+		this.inventoryType = connectorPluginArg.inventoryType();
 	}
 
 	@Override
@@ -94,6 +96,16 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 		{
 			return false;
 		}
+		if (this.inventoryType != InventoryType.SYNCED && playerConnectedResponse.initialInventoryContents() == null)
+		{
+			throw new ConnectorPluginException("Bad player connected response data (missing initial inventory data for inventory type %s)".formatted(this.inventoryType.name()));
+		}
+		this.playerInventories.put(playerLoginInfo.uuid, switch (this.inventoryType)
+		{
+			case SYNCED -> new SyncedPlayerInventory(playerLoginInfo.uuid, this.requestSender, this.publisher, this.queueName);
+			case DISCARD -> new DiscardPlayerInventory(playerConnectedResponse.initialInventoryContents());
+			case BACKPACK -> new BackpackPlayerInventory(playerConnectedResponse.initialInventoryContents());
+		});
 		return true;
 	}
 
@@ -101,7 +113,14 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@NotNull
 	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId) throws ConnectorPluginException
 	{
-		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDisconnected", new PlayerDisconnectedRequest(playerId), PlayerDisconnectedResponse.class);
+		InventoryResponse backpackContents = switch (this.inventoryType)
+		{
+			case SYNCED -> null;
+			case DISCARD -> null;
+			case BACKPACK -> ((BackpackPlayerInventory) this.getInventoryForPlayer(playerId)).getContentsAsInventoryResponse();
+		};
+		PlayerDisconnectedRequest playerDisconnectedRequest = new PlayerDisconnectedRequest(playerId, backpackContents);
+		PlayerDisconnectedResponse playerDisconnectedResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDisconnected", playerDisconnectedRequest, PlayerDisconnectedResponse.class);
 		return new DisconnectResponse();
 	}
 
@@ -109,56 +128,53 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@NotNull
 	public Inventory onPlayerGetInventory(@NotNull String playerId) throws ConnectorPluginException
 	{
-		InventoryResponse inventoryResponse = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "getInventory", playerId, InventoryResponse.class);
-		Inventory inventory;
-		try
-		{
-			inventory = new Inventory(
-					Arrays.stream(inventoryResponse.items()).filter(item -> item.instanceId() == null).map(item -> new Inventory.StackableItem(item.id(), item.count())).toArray(Inventory.StackableItem[]::new),
-					Arrays.stream(inventoryResponse.items()).filter(item -> item.instanceId() != null).map(item -> new Inventory.NonStackableItem(item.id(), item.instanceId(), item.wear())).toArray(Inventory.NonStackableItem[]::new),
-					Arrays.stream(inventoryResponse.hotbar()).map(hotbarItem -> hotbarItem != null ? (hotbarItem.instanceId() != null ? new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.instanceId()) : new Inventory.HotbarItem(hotbarItem.id(), hotbarItem.count())) : null).toArray(Inventory.HotbarItem[]::new)
-			);
-		}
-		catch (IllegalArgumentException exception)
-		{
-			throw new ConnectorPluginException("Bad inventory data", exception);
-		}
-		return inventory;
+		return this.getInventoryForPlayer(playerId).getContents();
 	}
 
 	@Override
 	public void onPlayerInventoryAddItem(@NotNull String playerId, @NotNull String itemId, int count) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventoryAdd", new InventoryAddItemMessage(playerId, itemId, count, null, 0));
+		this.getInventoryForPlayer(playerId).addItem(itemId, count);
 	}
 
 	@Override
 	public void onPlayerInventoryAddItem(@NotNull String playerId, @NotNull String itemId, @NotNull String instanceId, int wear) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventoryAdd", new InventoryAddItemMessage(playerId, itemId, 1, instanceId, wear));
+		this.getInventoryForPlayer(playerId).addItem(itemId, instanceId, wear);
 	}
 
 	@Override
 	public int onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, int count) throws ConnectorPluginException
 	{
-		return EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "inventoryRemove", new InventoryRemoveItemRequest(playerId, itemId, count, null), Integer.class);
+		return this.getInventoryForPlayer(playerId).removeItem(itemId, count);
 	}
 
 	@Override
 	public boolean onPlayerInventoryRemoveItem(@NotNull String playerId, @NotNull String itemId, @NotNull String instanceId) throws ConnectorPluginException
 	{
-		return EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "inventoryRemove", new InventoryRemoveItemRequest(playerId, itemId, 1, instanceId), Boolean.class);
+		return this.getInventoryForPlayer(playerId).removeItem(itemId, instanceId);
 	}
 
 	@Override
 	public void onPlayerInventoryUpdateItemWear(@NotNull String playerId, @NotNull String itemId, @NotNull String instanceId, int wear) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventoryUpdateWear", new InventoryUpdateItemWearMessage(playerId, itemId, instanceId, wear));
+		this.getInventoryForPlayer(playerId).updateItemWear(itemId, instanceId, wear);
 	}
 
 	@Override
 	public void onPlayerInventorySetHotbar(@NotNull String playerId, Inventory.HotbarItem[] hotbar) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "inventorySetHotbar", new InventorySetHotbarMessage(playerId, Arrays.stream(hotbar).map(item -> item != null ? new InventorySetHotbarMessage.Item(item.uuid, item.count, item.instanceId) : null).toArray(InventorySetHotbarMessage.Item[]::new)));
+		this.getInventoryForPlayer(playerId).setHotbar(hotbar);
+	}
+
+	@NotNull
+	private PlayerInventory getInventoryForPlayer(@NotNull String playerId) throws ConnectorPluginException
+	{
+		PlayerInventory playerInventory = this.playerInventories.getOrDefault(playerId, null);
+		if (playerInventory == null)
+		{
+			throw new ConnectorPluginException("Inventory does not exist for player ID (player not connected?)");
+		}
+		return playerInventory;
 	}
 }
