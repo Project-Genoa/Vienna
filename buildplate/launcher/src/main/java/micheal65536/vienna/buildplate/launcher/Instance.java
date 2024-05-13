@@ -126,6 +126,7 @@ public class Instance
 		this.connectorPluginArgString = new Gson().newBuilder().serializeNulls().create().toJson(new ConnectorPluginArg(
 				eventBusConnectionString,
 				this.eventBusQueueName,
+				true,
 				InventoryType.SYNCED
 		), ConnectorPluginArg.class);
 

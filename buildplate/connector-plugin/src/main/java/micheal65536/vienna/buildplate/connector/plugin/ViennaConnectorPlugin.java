@@ -30,6 +30,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	private Publisher publisher;
 	private RequestSender requestSender;
 
+	private boolean saveEnabled;
 	private InventoryType inventoryType;
 
 	private final HashMap<String, PlayerInventory> playerInventories = new HashMap<>();
@@ -59,6 +60,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 		this.publisher = this.eventBusClient.addPublisher();
 		this.requestSender = this.eventBusClient.addRequestSender();
 
+		this.saveEnabled = connectorPluginArg.saveEnabled();
 		this.inventoryType = connectorPluginArg.inventoryType();
 	}
 
@@ -85,7 +87,10 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@Override
 	public void onWorldSaved(byte[] data) throws ConnectorPluginException
 	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "saved", new WorldSavedMessage(Base64.getEncoder().encodeToString(data)));
+		if (this.saveEnabled)
+		{
+			EventBusHelper.publishJson(this.publisher, this.queueName, "saved", new WorldSavedMessage(Base64.getEncoder().encodeToString(data)));
+		}
 	}
 
 	@Override

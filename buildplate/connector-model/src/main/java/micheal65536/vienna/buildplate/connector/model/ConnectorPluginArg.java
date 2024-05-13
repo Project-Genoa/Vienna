@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 public record ConnectorPluginArg(
 		@NotNull String eventBusAddress,
 		@NotNull String eventBusQueueName,
+		boolean saveEnabled,
 		@NotNull InventoryType inventoryType
 )
 {
