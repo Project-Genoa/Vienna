@@ -342,11 +342,50 @@ public final class BuildplateInstanceRequestHandler
 	{
 		// TODO: check join code etc.
 
-		// TODO: initial inventory contents based on instance type (build, play, adventure, etc.)
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return null;
+		}
+
+		InventoryResponse initialInventoryContents;
+		switch (instanceInfo.type())
+		{
+			case BUILD ->
+			{
+				initialInventoryContents = null;
+			}
+			case PLAY ->
+			{
+				EarthDB.Results results = new EarthDB.Query(false)
+						.get("inventory", playerConnectedRequest.uuid(), Inventory.class)
+						.get("hotbar", playerConnectedRequest.uuid(), Hotbar.class)
+						.execute(this.earthDB);
+				Inventory inventory = (Inventory) results.get("inventory").value();
+				Hotbar hotbar = (Hotbar) results.get("hotbar").value();
+
+				initialInventoryContents = new InventoryResponse(
+						Stream.concat(
+								Arrays.stream(inventory.getStackableItems())
+										.map(item -> new InventoryResponse.Item(item.id(), item.count(), null, 0)),
+								Arrays.stream(inventory.getNonStackableItems())
+										.mapMulti((item, consumer) -> Arrays.stream(item.instances())
+												.map(instance -> new InventoryResponse.Item(item.id(), 1, instance.instanceId(), instance.wear()))
+												.forEach(consumer))
+						).filter(item -> item.count() > 0).toArray(InventoryResponse.Item[]::new),
+						Arrays.stream(hotbar.items).map(item -> item != null && item.count() > 0 ? new InventoryResponse.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(InventoryResponse.HotbarItem[]::new)
+				);
+			}
+			default ->
+			{
+				// shouldn't happen, safe default
+				initialInventoryContents = new InventoryResponse(new InventoryResponse.Item[0], new InventoryResponse.HotbarItem[7]);
+			}
+		}
 
 		PlayerConnectedResponse playerConnectedResponse = new PlayerConnectedResponse(
 				true,
-				null
+				initialInventoryContents
 		);
 
 		return playerConnectedResponse;

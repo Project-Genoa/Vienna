@@ -30,9 +30,15 @@ import java.util.HashMap;
 
 public class BuildplatesRouter extends Router
 {
+	private final EarthDB earthDB;
+	private final BuildplateInstancesManager buildplateInstancesManager;
+
 	public BuildplatesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient)
 	{
 		BuildplateInstancesManager buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);
+
+		this.earthDB = earthDB;
+		this.buildplateInstancesManager = buildplateInstancesManager;
 
 		this.addHandler(new Route.Builder(Request.Method.GET, "/buildplates").build(), request ->
 		{
@@ -89,38 +95,17 @@ public class BuildplatesRouter extends Router
 			String playerId = request.getContextData("playerId");
 			String buildplateId = request.getParameter("buildplateId");
 
-			Buildplates.Buildplate buildplate;
-			try
-			{
-				EarthDB.Results results = new EarthDB.Query(false)
-						.get("buildplates", playerId, Buildplates.class)
-						.execute(earthDB);
-				buildplate = ((Buildplates) results.get("buildplates").value()).getBuildplate(buildplateId);
-			}
-			catch (DatabaseException exception)
-			{
-				throw new ServerErrorException(exception);
-			}
-			if (buildplate == null)
-			{
-				return Response.notFound();
-			}
+			return this.getNewBuildplateInstanceResponse(playerId, buildplateId, BuildplateInstancesManager.InstanceType.BUILD);
+		});
 
-			String instanceId = buildplateInstancesManager.startBuildplateInstance(playerId, buildplateId, buildplate.night);
-			if (instanceId == null)
-			{
-				return Response.serverError();
-			}
+		this.addHandler(new Route.Builder(Request.Method.POST, "/multiplayer/buildplate/$buildplateId/play/instances").build(), request ->
+		{
+			// TODO: coordinates etc.
 
-			BuildplateInstancesManager.InstanceInfo instanceInfo = buildplateInstancesManager.getInstanceInfo(instanceId);
-			if (instanceInfo == null)
-			{
-				return Response.serverError();
-			}
+			String playerId = request.getContextData("playerId");
+			String buildplateId = request.getParameter("buildplateId");
 
-			BuildplateInstance buildplateInstance = instanceInfoToApiResponse(buildplate, instanceInfo);
-
-			return Response.okFromJson(new EarthApiResponse<>(buildplateInstance), EarthApiResponse.class);
+			return this.getNewBuildplateInstanceResponse(playerId, buildplateId, BuildplateInstancesManager.InstanceType.PLAY);
 		});
 
 		// TODO: should we restrict this to matching player ID?
@@ -186,8 +171,61 @@ public class BuildplatesRouter extends Router
 		});
 	}
 
+	private Response getNewBuildplateInstanceResponse(@NotNull String playerId, @NotNull String buildplateId, @NotNull BuildplateInstancesManager.InstanceType type) throws ServerErrorException
+	{
+		Buildplates.Buildplate buildplate;
+		try
+		{
+			EarthDB.Results results = new EarthDB.Query(false)
+					.get("buildplates", playerId, Buildplates.class)
+					.execute(this.earthDB);
+			buildplate = ((Buildplates) results.get("buildplates").value()).getBuildplate(buildplateId);
+		}
+		catch (DatabaseException exception)
+		{
+			throw new ServerErrorException(exception);
+		}
+		if (buildplate == null)
+		{
+			return Response.notFound();
+		}
+
+		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(playerId, buildplateId, type, buildplate.night);
+		if (instanceId == null)
+		{
+			return Response.serverError();
+		}
+
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return Response.serverError();
+		}
+
+		BuildplateInstance buildplateInstance = instanceInfoToApiResponse(buildplate, instanceInfo);
+
+		return Response.okFromJson(new EarthApiResponse<>(buildplateInstance), EarthApiResponse.class);
+	}
+
 	private static BuildplateInstance instanceInfoToApiResponse(@NotNull Buildplates.Buildplate buildplate, @NotNull BuildplateInstancesManager.InstanceInfo instanceInfo)
 	{
+		boolean fullsize;
+		switch (instanceInfo.type())
+		{
+			case BUILD ->
+			{
+				fullsize = false;
+			}
+			case PLAY ->
+			{
+				fullsize = true;
+			}
+			default ->
+			{
+				fullsize = false;
+			}
+		}
+
 		return new BuildplateInstance(
 				instanceInfo.instanceId(),
 				"00000000-0000-0000-0000-000000000000",
@@ -206,8 +244,8 @@ public class BuildplatesRouter extends Router
 						"CK06Yzm2",    // TODO
 						new Dimension(buildplate.size, buildplate.size),
 						new Offset(0, buildplate.offset, 0),
-						buildplate.scale,
-						false,    // TODO
+						!fullsize ? buildplate.scale : 1,
+						fullsize,
 						BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE,    // TODO
 						SurfaceOrientation.HORIZONTAL,
 						null,

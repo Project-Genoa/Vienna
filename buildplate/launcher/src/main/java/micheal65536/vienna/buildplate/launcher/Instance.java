@@ -49,9 +49,9 @@ public class Instance
 	private static final long HOST_PLAYER_CONNECT_TIMEOUT = 20000;
 
 	@NotNull
-	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
-		Instance instance = new Instance(eventBusClient, playerId, buildplateId, instanceId, survival, night, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
+		Instance instance = new Instance(eventBusClient, playerId, buildplateId, instanceId, survival, night, saveEnabled, inventoryType, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
 		instance.threadStartedSemaphore.acquireUninterruptibly();
 		new Thread(() ->
 		{
@@ -69,6 +69,8 @@ public class Instance
 	public final String instanceId;
 	private final boolean survival;
 	private final boolean night;
+	private final boolean saveEnabled;
+	private final InventoryType inventoryType;
 
 	public final String publicAddress;
 	public final int port;
@@ -102,7 +104,7 @@ public class Instance
 
 	private volatile boolean hostPlayerConnected = false;
 
-	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
 		this.eventBusClient = eventBusClient;
 
@@ -111,6 +113,8 @@ public class Instance
 		this.instanceId = instanceId;
 		this.survival = survival;
 		this.night = night;
+		this.saveEnabled = saveEnabled;
+		this.inventoryType = inventoryType;
 
 		this.publicAddress = publicAddress;
 		this.port = port;
@@ -126,8 +130,8 @@ public class Instance
 		this.connectorPluginArgString = new Gson().newBuilder().serializeNulls().create().toJson(new ConnectorPluginArg(
 				eventBusConnectionString,
 				this.eventBusQueueName,
-				true,
-				InventoryType.SYNCED
+				this.saveEnabled,
+				this.inventoryType
 		), ConnectorPluginArg.class);
 
 		this.logger = LogManager.getLogger("Instance %s".formatted(this.instanceId));
@@ -140,7 +144,7 @@ public class Instance
 
 		try
 		{
-			this.logger.info("Starting for buildplate {} player {}", this.buildplateId, this.playerId);
+			this.logger.info("Starting for buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
 			this.logger.info("Using port {} internal port {}", this.port, this.serverInternalPort);
 
 			this.requestSender = this.eventBusClient.addRequestSender();

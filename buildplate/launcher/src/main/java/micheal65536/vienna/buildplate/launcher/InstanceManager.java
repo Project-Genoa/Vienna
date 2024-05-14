@@ -5,6 +5,7 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.buildplate.connector.model.InventoryType;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
 import micheal65536.vienna.eventbus.client.RequestHandler;
@@ -48,11 +49,17 @@ public class InstanceManager
 					InstanceManager.this.runningInstanceCount += 1;
 					InstanceManager.this.lock.unlock();
 
+					enum InstanceType
+					{
+						BUILD,
+						PLAY
+					}
+
 					record StartRequest(
 							@NotNull String playerId,
 							@NotNull String buildplateId,
-							boolean survival,
-							boolean night
+							boolean night,
+							@NotNull InstanceType type
 					)
 					{
 					}
@@ -62,7 +69,8 @@ public class InstanceManager
 							@NotNull String playerId,
 							@NotNull String buildplateId,
 							@NotNull String address,
-							int port
+							int port,
+							@NotNull InstanceType type
 					)
 					{
 					}
@@ -82,7 +90,33 @@ public class InstanceManager
 
 					LogManager.getLogger().info("Starting buildplate instance {} for player {} buildplate {}", instanceId, startRequest.playerId, startRequest.buildplateId);
 
-					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, startRequest.survival, startRequest.night);
+					boolean survival;
+					boolean saveEnabled;
+					InventoryType inventoryType;
+					switch (startRequest.type)
+					{
+						case BUILD ->
+						{
+							survival = false;
+							saveEnabled = true;
+							inventoryType = InventoryType.SYNCED;
+						}
+						case PLAY ->
+						{
+							survival = true;
+							saveEnabled = false;
+							inventoryType = InventoryType.DISCARD;
+						}
+						default ->
+						{
+							// shouldn't happen, just choose some safe defaults
+							survival = false;
+							saveEnabled = false;
+							inventoryType = InventoryType.DISCARD;
+						}
+					}
+
+					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, survival, startRequest.night, saveEnabled, inventoryType);
 					if (instance == null)
 					{
 						LogManager.getLogger().error("Error starting buildplate instance {}", instanceId);
@@ -93,7 +127,8 @@ public class InstanceManager
 							startRequest.playerId,
 							startRequest.buildplateId,
 							instance.publicAddress,
-							instance.port
+							instance.port,
+							startRequest.type
 					));
 
 					new Thread(() ->

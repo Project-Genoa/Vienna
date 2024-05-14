@@ -11,6 +11,7 @@ import micheal65536.vienna.eventbus.client.Subscriber;
 
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.concurrent.CompletableFuture;
 
 public final class BuildplateInstancesManager
@@ -21,6 +22,7 @@ public final class BuildplateInstancesManager
 
 	private final HashMap<String, CompletableFuture<Boolean>> pendingInstances = new HashMap<>();
 	private final HashMap<String, InstanceInfo> instances = new HashMap<>();
+	private final HashMap<String, LinkedHashSet<String>> instancesByBuildplateId = new HashMap<>();
 
 	public BuildplateInstancesManager(@NotNull EventBusClient eventBusClient)
 	{
@@ -44,11 +46,29 @@ public final class BuildplateInstancesManager
 	}
 
 	@Nullable
-	public String startBuildplateInstance(@NotNull String playerId, @NotNull String buildplateId, boolean night)
+	public String requestBuildplateInstance(@NotNull String playerId, @NotNull String buildplateId, @NotNull InstanceType type, boolean night)
 	{
-		LogManager.getLogger().info("Requesting buildplate instance for player {} buildplate {}", playerId, buildplateId);
+		LogManager.getLogger().info("Finding buildplate instance for player {} buildplate {} type {}", playerId, buildplateId, type);
 
-		String instanceId = this.requestSender.request("buildplates", "start", new Gson().toJson(new StartRequest(playerId, buildplateId, false, night))).join();
+		synchronized (this.instances)
+		{
+			LinkedHashSet<String> instanceIds = this.instancesByBuildplateId.getOrDefault(buildplateId, null);
+			if (instanceIds != null)
+			{
+				for (String instanceId : instanceIds)
+				{
+					InstanceInfo instanceInfo = this.instances.getOrDefault(instanceId, null);
+					if (instanceInfo != null && instanceInfo.playerId.equals(playerId) && instanceInfo.type == type)
+					{
+						LogManager.getLogger().info("Found existing buildplate instance {}", instanceId);
+						return instanceId;
+					}
+				}
+			}
+		}
+
+		LogManager.getLogger().info("Did not find existing instance, starting new instance");
+		String instanceId = this.requestSender.request("buildplates", "start", new Gson().toJson(new StartRequest(playerId, buildplateId, night, type))).join();
 		if (instanceId == null)
 		{
 			LogManager.getLogger().error("Buildplate start request was rejected/ignored");
@@ -117,6 +137,7 @@ public final class BuildplateInstancesManager
 					{
 						LogManager.getLogger().info("Buildplate instance {} has started", startNotification.instanceId);
 						this.instances.put(startNotification.instanceId, new InstanceInfo(
+								startNotification.type,
 								startNotification.instanceId,
 								startNotification.playerId,
 								startNotification.buildplateId,
@@ -124,6 +145,7 @@ public final class BuildplateInstancesManager
 								startNotification.port,
 								false
 						));
+						this.instancesByBuildplateId.computeIfAbsent(startNotification.buildplateId, buildplateId -> new LinkedHashSet<>()).add(startNotification.instanceId);
 					}
 
 					synchronized (this.pendingInstances)
@@ -150,6 +172,7 @@ public final class BuildplateInstancesManager
 					{
 						LogManager.getLogger().info("Buildplate instance {} is ready", instanceId);
 						this.instances.put(instanceId, new InstanceInfo(
+								instanceInfo.type,
 								instanceInfo.instanceId,
 								instanceInfo.playerId,
 								instanceInfo.buildplateId,
@@ -165,9 +188,16 @@ public final class BuildplateInstancesManager
 				String instanceId = event.data;
 				synchronized (this.instances)
 				{
-					if (this.instances.remove(instanceId) != null)
+					InstanceInfo instanceInfo = this.instances.remove(instanceId);
+					if (instanceInfo != null)
 					{
 						LogManager.getLogger().info("Buildplate instance {} has stopped", instanceId);
+
+						LinkedHashSet<String> instanceIds = this.instancesByBuildplateId.getOrDefault(instanceInfo.buildplateId, null);
+						if (instanceIds != null)
+						{
+							instanceIds.remove(instanceInfo.instanceId);
+						}
 					}
 				}
 			}
@@ -177,8 +207,8 @@ public final class BuildplateInstancesManager
 	private record StartRequest(
 			@NotNull String playerId,
 			@NotNull String buildplateId,
-			boolean survival,
-			boolean night
+			boolean night,
+			@NotNull InstanceType type
 	)
 	{
 	}
@@ -195,12 +225,21 @@ public final class BuildplateInstancesManager
 			@NotNull String playerId,
 			@NotNull String buildplateId,
 			@NotNull String address,
-			int port
+			int port,
+			@NotNull InstanceType type
 	)
 	{
 	}
 
+	public enum InstanceType
+	{
+		BUILD,
+		PLAY
+	}
+
 	public record InstanceInfo(
+			@NotNull InstanceType type,
+
 			@NotNull String instanceId,
 
 			@NotNull String playerId,
