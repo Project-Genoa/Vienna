@@ -9,7 +9,6 @@ import micheal65536.vienna.apiserver.types.common.Rarity;
 
 import java.util.HashMap;
 
-// TODO: actually implement proper snapshot and shutdown behavior in the buildplate server
 public record BuildplateInstance(
 		@NotNull String instanceId,
 		@NotNull String partitionId,
@@ -50,8 +49,6 @@ public record BuildplateInstance(
 			@NotNull SurfaceOrientation surfaceOrientation,
 			@Nullable String augmentedImageSetId,
 			@Nullable Rarity rarity,
-			@NotNull ShutdownBehavior[] shutdownBehavior,
-			@NotNull SnapshotOptions snapshotOptions,
 			@NotNull HashMap<String, Object> breakableItemToItemLootMap    // TODO: find out what this is
 	)
 	{
@@ -59,48 +56,6 @@ public record BuildplateInstance(
 		{
 			@SerializedName("Buildplate") BUILDPLATE,
 			@SerializedName("Encounter") ENCOUNTER
-		}
-
-		public enum ShutdownBehavior
-		{
-			@SerializedName("ServerShutdownWhenAllPlayersQuit") ALL_PLAYERS_QUIT,
-			@SerializedName("ServerShutdownWhenHostPlayerQuits") HOST_PLAYER_QUITS
-		}
-
-		public record SnapshotOptions(
-				@NotNull SnapshotWorldStorage snapshotWorldStorage,
-				@NotNull SaveState saveState,
-				@NotNull SnapshotTriggerConditions snapshotTriggerConditions,
-				@NotNull TriggerCondition[] triggerConditions,
-				@NotNull String triggerInterval
-		)
-		{
-			public enum SnapshotWorldStorage
-			{
-				@SerializedName("Buildplate") BUILDPLATE
-			}
-
-			public record SaveState(
-					boolean boosts,
-					boolean experiencePoints,
-					boolean health,
-					boolean inventory,
-					boolean model,
-					boolean world
-			)
-			{
-			}
-
-			public enum SnapshotTriggerConditions
-			{
-				@SerializedName("None") NONE
-			}
-
-			public enum TriggerCondition
-			{
-				@SerializedName("Interval") INTERVAL,
-				@SerializedName("PlayerExits") PLAYER_EXITS
-			}
 		}
 	}
 }

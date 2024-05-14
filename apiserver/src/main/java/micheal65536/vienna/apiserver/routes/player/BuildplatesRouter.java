@@ -250,21 +250,6 @@ public class BuildplatesRouter extends Router
 						SurfaceOrientation.HORIZONTAL,
 						null,
 						null,    // TODO
-						new BuildplateInstance.GameplayMetadata.ShutdownBehavior[]{BuildplateInstance.GameplayMetadata.ShutdownBehavior.ALL_PLAYERS_QUIT, BuildplateInstance.GameplayMetadata.ShutdownBehavior.HOST_PLAYER_QUITS},
-						new BuildplateInstance.GameplayMetadata.SnapshotOptions(
-								BuildplateInstance.GameplayMetadata.SnapshotOptions.SnapshotWorldStorage.BUILDPLATE,
-								new BuildplateInstance.GameplayMetadata.SnapshotOptions.SaveState(
-										false,
-										false,
-										false,
-										true,
-										true,
-										true
-								),
-								BuildplateInstance.GameplayMetadata.SnapshotOptions.SnapshotTriggerConditions.NONE,
-								new BuildplateInstance.GameplayMetadata.SnapshotOptions.TriggerCondition[]{BuildplateInstance.GameplayMetadata.SnapshotOptions.TriggerCondition.INTERVAL, BuildplateInstance.GameplayMetadata.SnapshotOptions.TriggerCondition.PLAYER_EXITS},
-								TimeFormatter.formatDuration(30 * 1000)
-						),
 						new HashMap<>()
 				),
 				"776932eeeb69",
