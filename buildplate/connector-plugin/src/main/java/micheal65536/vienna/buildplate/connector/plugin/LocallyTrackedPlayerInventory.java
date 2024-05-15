@@ -8,6 +8,7 @@ import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 
 abstract class LocallyTrackedPlayerInventory implements PlayerInventory
 {
@@ -70,6 +71,7 @@ abstract class LocallyTrackedPlayerInventory implements PlayerInventory
 	{
 		count = Math.min(count, this.stackableItems.getOrDefault(itemId, 0));
 		this.stackableItems.put(itemId, this.stackableItems.getOrDefault(itemId, 0) - count);
+		this.limitHotbarToInventory();
 		return count;
 	}
 
@@ -81,7 +83,9 @@ abstract class LocallyTrackedPlayerInventory implements PlayerInventory
 		{
 			return false;
 		}
-		return instances.remove(instanceId) != null;
+		boolean success = instances.remove(instanceId) != null;
+		this.limitHotbarToInventory();
+		return success;
 	}
 
 	@Override
@@ -106,6 +110,57 @@ abstract class LocallyTrackedPlayerInventory implements PlayerInventory
 		{
 			Inventory.HotbarItem hotbarItem = hotbar[index];
 			this.hotbar[index] = hotbarItem != null ? new InventoryResponse.HotbarItem(hotbarItem.uuid, hotbarItem.count, hotbarItem.instanceId) : null;
+		}
+		this.limitHotbarToInventory();
+	}
+
+	private void limitHotbarToInventory()
+	{
+		HashMap<String, Integer> hotbarItemCounts = new HashMap<>();
+		HashMap<String, HashSet<String>> hotbarItemInstances = new HashMap<>();
+		for (int index = 0; index < 7; index++)
+		{
+			InventoryResponse.HotbarItem hotbarItem = this.hotbar[index];
+			if (hotbarItem != null)
+			{
+				if (hotbarItem.instanceId() == null)
+				{
+					int availableCount = this.stackableItems.getOrDefault(hotbarItem.id(), 0) - hotbarItemCounts.getOrDefault(hotbarItem.id(), 0);
+					hotbarItemCounts.put(hotbarItem.id(), hotbarItemCounts.getOrDefault(hotbarItem.id(), 0) + hotbarItem.count());
+					if (hotbarItem.count() > availableCount)
+					{
+						if (availableCount <= 0)
+						{
+							hotbarItem = null;
+						}
+						else
+						{
+							hotbarItem = new InventoryResponse.HotbarItem(hotbarItem.id(), availableCount, null);
+						}
+					}
+				}
+				else
+				{
+					HashSet<String> hotbarInstances = hotbarItemInstances.computeIfAbsent(hotbarItem.id(), uuid -> new HashSet<>());
+					if (!hotbarInstances.add(hotbarItem.instanceId()))
+					{
+						hotbarItem = null;
+					}
+					else
+					{
+						HashMap<String, Integer> instances = this.nonStackableItems.getOrDefault(hotbarItem.id(), null);
+						if (instances == null)
+						{
+							hotbarItem = null;
+						}
+						else if (!instances.containsKey(hotbarItem.instanceId()))
+						{
+							hotbarItem = null;
+						}
+					}
+				}
+				this.hotbar[index] = hotbarItem;
+			}
 		}
 	}
 }
