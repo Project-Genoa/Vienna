@@ -55,6 +55,8 @@ public record BuildplateInstance(
 		public enum GameplayMode
 		{
 			@SerializedName("Buildplate") BUILDPLATE,
+			@SerializedName("BuildplatePlay") BUILDPLATE_PLAY,
+			@SerializedName("SharedBuildplatePlay") SHARED_BUILDPLATE_PLAY,
 			@SerializedName("Encounter") ENCOUNTER
 		}
 	}

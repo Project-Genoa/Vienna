@@ -210,19 +210,23 @@ public class BuildplatesRouter extends Router
 	private static BuildplateInstance instanceInfoToApiResponse(@NotNull Buildplates.Buildplate buildplate, @NotNull BuildplateInstancesManager.InstanceInfo instanceInfo)
 	{
 		boolean fullsize;
+		BuildplateInstance.GameplayMetadata.GameplayMode gameplayMode;
 		switch (instanceInfo.type())
 		{
 			case BUILD ->
 			{
 				fullsize = false;
+				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE;
 			}
 			case PLAY ->
 			{
 				fullsize = true;
+				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE_PLAY;
 			}
 			default ->
 			{
 				fullsize = false;
+				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE;
 			}
 		}
 
@@ -246,7 +250,7 @@ public class BuildplatesRouter extends Router
 						new Offset(0, buildplate.offset, 0),
 						!fullsize ? buildplate.scale : 1,
 						fullsize,
-						BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE,    // TODO
+						gameplayMode,
 						SurfaceOrientation.HORIZONTAL,
 						null,
 						null,    // TODO
