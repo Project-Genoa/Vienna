@@ -263,7 +263,7 @@ public class BuildplatesRouter extends Router
 							preview,
 							0
 					),
-					new SharedBuildplate.Inventory(
+					new micheal65536.vienna.apiserver.types.inventory.Inventory(
 							Arrays.stream(sharedBuildplate.hotbar).map(item -> item != null ? new HotbarItem(
 									item.uuid(),
 									item.count(),

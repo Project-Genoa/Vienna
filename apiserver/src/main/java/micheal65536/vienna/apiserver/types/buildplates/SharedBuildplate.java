@@ -3,9 +3,7 @@ package micheal65536.vienna.apiserver.types.buildplates;
 import com.google.gson.annotations.SerializedName;
 import org.jetbrains.annotations.NotNull;
 
-import micheal65536.vienna.apiserver.types.inventory.HotbarItem;
-import micheal65536.vienna.apiserver.types.inventory.NonStackableInventoryItem;
-import micheal65536.vienna.apiserver.types.inventory.StackableInventoryItem;
+import micheal65536.vienna.apiserver.types.inventory.Inventory;
 
 public record SharedBuildplate(
 		@NotNull String playerId,
@@ -28,13 +26,5 @@ public record SharedBuildplate(
 		{
 			@SerializedName("Survival") SURVIVAL
 		}
-	}
-
-	public record Inventory(
-			HotbarItem[] hotbar,
-			@NotNull StackableInventoryItem[] stackableItems,
-			@NotNull NonStackableInventoryItem[] nonStackableItems
-	)
-	{
 	}
 }

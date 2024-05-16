@@ -50,14 +50,6 @@ public class InventoryRouter extends Router
 				throw new ServerErrorException(exception);
 			}
 
-			HashMap<String, Object> inventory = new HashMap<>();
-			HotbarItem[] hotbarItems = Arrays.stream(hotbarModel.items).map(item -> item != null ? new HotbarItem(
-					item.uuid(),
-					item.count(),
-					item.instanceId(),
-					item.instanceId() != null ? ItemWear.wearToHealth(item.uuid(), inventoryModel.getItemInstance(item.uuid(), item.instanceId()).wear(), catalog.itemsCatalog) : 0.0f
-			) : null).toArray(HotbarItem[]::new);
-			inventory.put("hotbar", hotbarItems);
 			HashMap<String, Integer> hotbarItemCounts = new HashMap<>();
 			Arrays.stream(hotbarModel.items).forEach(item ->
 			{
@@ -66,22 +58,6 @@ public class InventoryRouter extends Router
 					hotbarItemCounts.put(item.uuid(), hotbarItemCounts.getOrDefault(item.uuid(), 0) + item.count());
 				}
 			});
-			StackableInventoryItem[] stackableItems = Arrays.stream(inventoryModel.getStackableItems()).map(item ->
-			{
-				String uuid = item.id();
-				int count = item.count() - hotbarItemCounts.getOrDefault(uuid, 0);
-				Journal.ItemJournalEntry itemJournalEntry = journalModel.getItem(uuid);
-				String firstSeen = TimeFormatter.formatTime(itemJournalEntry.firstSeen());
-				String lastSeen = TimeFormatter.formatTime(itemJournalEntry.lastSeen());
-				return new StackableInventoryItem(
-						uuid,
-						count,
-						1,
-						new StackableInventoryItem.On(firstSeen),
-						new StackableInventoryItem.On(lastSeen)
-				);
-			}).toArray(StackableInventoryItem[]::new);
-			inventory.put("stackableItems", stackableItems);
 			HashSet<String> hotbarItemInstances = new HashSet<>();
 			Arrays.stream(hotbarModel.items).forEach(item ->
 			{
@@ -90,21 +66,43 @@ public class InventoryRouter extends Router
 					hotbarItemInstances.add(item.instanceId());
 				}
 			});
-			NonStackableInventoryItem[] nonStackableItems = Arrays.stream(inventoryModel.getNonStackableItems()).map(item ->
-			{
-				String uuid = item.id();
-				Journal.ItemJournalEntry itemJournalEntry = journalModel.getItem(uuid);
-				String firstSeen = TimeFormatter.formatTime(itemJournalEntry.firstSeen());
-				String lastSeen = TimeFormatter.formatTime(itemJournalEntry.lastSeen());
-				return new NonStackableInventoryItem(
-						uuid,
-						Arrays.stream(item.instances()).filter(instance -> !hotbarItemInstances.contains(instance.instanceId())).map(instance -> new NonStackableInventoryItem.Instance(instance.instanceId(), ItemWear.wearToHealth(item.id(), instance.wear(), catalog.itemsCatalog))).toArray(NonStackableInventoryItem.Instance[]::new),
-						1,
-						new NonStackableInventoryItem.On(firstSeen),
-						new NonStackableInventoryItem.On(lastSeen)
-				);
-			}).toArray(NonStackableInventoryItem[]::new);
-			inventory.put("nonStackableItems", nonStackableItems);
+			micheal65536.vienna.apiserver.types.inventory.Inventory inventory = new micheal65536.vienna.apiserver.types.inventory.Inventory(
+					Arrays.stream(hotbarModel.items).map(item -> item != null ? new HotbarItem(
+							item.uuid(),
+							item.count(),
+							item.instanceId(),
+							item.instanceId() != null ? ItemWear.wearToHealth(item.uuid(), inventoryModel.getItemInstance(item.uuid(), item.instanceId()).wear(), catalog.itemsCatalog) : 0.0f
+					) : null).toArray(HotbarItem[]::new),
+					Arrays.stream(inventoryModel.getStackableItems()).map(item ->
+					{
+						String uuid = item.id();
+						int count = item.count() - hotbarItemCounts.getOrDefault(uuid, 0);
+						Journal.ItemJournalEntry itemJournalEntry = journalModel.getItem(uuid);
+						String firstSeen = TimeFormatter.formatTime(itemJournalEntry.firstSeen());
+						String lastSeen = TimeFormatter.formatTime(itemJournalEntry.lastSeen());
+						return new StackableInventoryItem(
+								uuid,
+								count,
+								1,
+								new StackableInventoryItem.On(firstSeen),
+								new StackableInventoryItem.On(lastSeen)
+						);
+					}).toArray(StackableInventoryItem[]::new),
+					Arrays.stream(inventoryModel.getNonStackableItems()).map(item ->
+					{
+						String uuid = item.id();
+						Journal.ItemJournalEntry itemJournalEntry = journalModel.getItem(uuid);
+						String firstSeen = TimeFormatter.formatTime(itemJournalEntry.firstSeen());
+						String lastSeen = TimeFormatter.formatTime(itemJournalEntry.lastSeen());
+						return new NonStackableInventoryItem(
+								uuid,
+								Arrays.stream(item.instances()).filter(instance -> !hotbarItemInstances.contains(instance.instanceId())).map(instance -> new NonStackableInventoryItem.Instance(instance.instanceId(), ItemWear.wearToHealth(item.id(), instance.wear(), catalog.itemsCatalog))).toArray(NonStackableInventoryItem.Instance[]::new),
+								1,
+								new NonStackableInventoryItem.On(firstSeen),
+								new NonStackableInventoryItem.On(lastSeen)
+						);
+					}).toArray(NonStackableInventoryItem[]::new)
+			);
 
 			return Response.okFromJson(new EarthApiResponse<>(inventory), EarthApiResponse.class);
 		});
