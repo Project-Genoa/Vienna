@@ -47,7 +47,7 @@ public class Starter
 	}
 
 	@Nullable
-	public Instance startInstance(@NotNull String instanceId, @NotNull String playerId, @NotNull String buildplateId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType)
+	public Instance startInstance(@NotNull String instanceId, @NotNull String playerId, @NotNull String buildplateId, boolean fromShared, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType)
 	{
 		File baseDir = this.createInstanceBaseDir(instanceId);
 		if (baseDir == null)
@@ -56,7 +56,7 @@ public class Starter
 		}
 		int port = findPort(this.portsInUse, BASE_PORT);
 		int serverInternalPort = findPort(this.serverInternalPortsInUse, SERVER_INTERNAL_BASE_PORT);
-		Instance instance = Instance.run(this.eventBusClient, playerId, buildplateId, instanceId, survival, night, saveEnabled, inventoryType, this.publicAddress, port, serverInternalPort, this.javaCmd, this.fountainBridgeJar, this.serverTemplateDir, this.fabricJarName, this.connectorPluginJar, baseDir, this.eventBusConnectionString);
+		Instance instance = Instance.run(this.eventBusClient, playerId, buildplateId, fromShared, instanceId, survival, night, saveEnabled, inventoryType, this.publicAddress, port, serverInternalPort, this.javaCmd, this.fountainBridgeJar, this.serverTemplateDir, this.fabricJarName, this.connectorPluginJar, baseDir, this.eventBusConnectionString);
 		new Thread(() ->
 		{
 			instance.waitForShutdown();

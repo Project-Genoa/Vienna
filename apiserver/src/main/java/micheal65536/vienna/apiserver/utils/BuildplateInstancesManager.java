@@ -234,7 +234,9 @@ public final class BuildplateInstancesManager
 	public enum InstanceType
 	{
 		BUILD,
-		PLAY
+		PLAY,
+		SHARED_BUILD,
+		SHARED_PLAY
 	}
 
 	public record InstanceInfo(

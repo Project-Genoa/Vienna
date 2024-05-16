@@ -21,6 +21,7 @@ import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.global.SharedBuildplates;
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
@@ -34,6 +35,7 @@ import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.stream.Stream;
 
 public final class BuildplateInstanceRequestHandler
@@ -74,6 +76,16 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoad(buildplateLoadRequest.playerId, buildplateLoadRequest.buildplateId);
+							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
+						}
+						case "loadShared" ->
+						{
+							SharedBuildplateLoadRequest sharedBuildplateLoadRequest = readRawRequest(request.data, SharedBuildplateLoadRequest.class);
+							if (sharedBuildplateLoadRequest == null)
+							{
+								return null;
+							}
+							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoadShared(sharedBuildplateLoadRequest.sharedBuildplateId);
 							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
 						}
 						case "saved" ->
@@ -181,6 +193,12 @@ public final class BuildplateInstanceRequestHandler
 	{
 	}
 
+	private record SharedBuildplateLoadRequest(
+			@NotNull String sharedBuildplateId
+	)
+	{
+	}
+
 	private record BuildplateLoadResponse(
 			@NotNull String serverDataBase64
 	)
@@ -205,6 +223,31 @@ public final class BuildplateInstanceRequestHandler
 		if (serverData == null)
 		{
 			LogManager.getLogger().error("Data object {} for buildplate {} could not be loaded from object store", buildplate.serverDataObjectId, buildplateId);
+			return null;
+		}
+		String serverDataBase64 = Base64.getEncoder().encodeToString(serverData);
+
+		return new BuildplateLoadResponse(serverDataBase64);
+	}
+
+	@Nullable
+	private BuildplateLoadResponse handleLoadShared(@NotNull String sharedBuildplateId) throws DatabaseException
+	{
+		EarthDB.Results results = new EarthDB.Query(false)
+				.get("sharedBuildplates", "", SharedBuildplates.class)
+				.execute(this.earthDB);
+		SharedBuildplates sharedBuildplates = (SharedBuildplates) results.get("sharedBuildplates").value();
+
+		SharedBuildplates.SharedBuildplate sharedBuildplate = sharedBuildplates.getSharedBuildplate(sharedBuildplateId);
+		if (sharedBuildplate == null)
+		{
+			return null;
+		}
+
+		byte[] serverData = this.objectStoreClient.get(sharedBuildplate.serverDataObjectId).join();
+		if (serverData == null)
+		{
+			LogManager.getLogger().error("Data object {} for shared buildplate {} could not be loaded from object store", sharedBuildplate.serverDataObjectId, sharedBuildplateId);
 			return null;
 		}
 		String serverDataBase64 = Base64.getEncoder().encodeToString(serverData);
@@ -374,6 +417,39 @@ public final class BuildplateInstanceRequestHandler
 												.forEach(consumer))
 						).filter(item -> item.count() > 0).toArray(InventoryResponse.Item[]::new),
 						Arrays.stream(hotbar.items).map(item -> item != null && item.count() > 0 ? new InventoryResponse.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(InventoryResponse.HotbarItem[]::new)
+				);
+			}
+			case SHARED_BUILD, SHARED_PLAY ->
+			{
+				EarthDB.Results results = new EarthDB.Query(false)
+						.get("sharedBuildplates", "", SharedBuildplates.class)
+						.execute(this.earthDB);
+				SharedBuildplates sharedBuildplates = (SharedBuildplates) results.get("sharedBuildplates").value();
+				SharedBuildplates.SharedBuildplate sharedBuildplate = sharedBuildplates.getSharedBuildplate(instanceInfo.buildplateId());
+				if (sharedBuildplate == null)
+				{
+					return null;
+				}
+
+				initialInventoryContents = new InventoryResponse(
+						Stream.concat(
+								Arrays.stream(sharedBuildplate.hotbar)
+										.filter(item -> item != null && item.count() > 0)
+										.filter(item -> item.instanceId() == null)
+										.collect(HashMap<String, Integer>::new, (hashMap, hotbarItem) ->
+										{
+											hashMap.put(hotbarItem.uuid(), hashMap.getOrDefault(hotbarItem.uuid(), 0) + hotbarItem.count());
+										}, (hashMap1, hashMap2) ->
+										{
+											hashMap2.forEach((uuid, count) -> hashMap1.merge(uuid, count, Integer::sum));
+										}).entrySet().stream()
+										.map(entry -> new InventoryResponse.Item(entry.getKey(), entry.getValue(), null, 0)),
+								Arrays.stream(sharedBuildplate.hotbar)
+										.filter(item -> item != null && item.count() > 0)
+										.filter(item -> item.instanceId() != null)
+										.map(item -> new InventoryResponse.Item(item.uuid(), 1, item.instanceId(), item.wear()))
+						).toArray(InventoryResponse.Item[]::new),
+						Arrays.stream(sharedBuildplate.hotbar).map(item -> item != null && item.count() > 0 ? new InventoryResponse.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(InventoryResponse.HotbarItem[]::new)
 				);
 			}
 			default ->

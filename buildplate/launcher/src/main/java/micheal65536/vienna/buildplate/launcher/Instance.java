@@ -49,9 +49,9 @@ public class Instance
 	private static final long HOST_PLAYER_CONNECT_TIMEOUT = 20000;
 
 	@NotNull
-	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, boolean fromShared, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
-		Instance instance = new Instance(eventBusClient, playerId, buildplateId, instanceId, survival, night, saveEnabled, inventoryType, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
+		Instance instance = new Instance(eventBusClient, playerId, buildplateId, fromShared, instanceId, survival, night, saveEnabled, inventoryType, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
 		instance.threadStartedSemaphore.acquireUninterruptibly();
 		new Thread(() ->
 		{
@@ -66,6 +66,7 @@ public class Instance
 
 	private final String playerId;
 	private final String buildplateId;
+	private final boolean fromShared;
 	public final String instanceId;
 	private final boolean survival;
 	private final boolean night;
@@ -104,12 +105,13 @@ public class Instance
 
 	private volatile boolean hostPlayerConnected = false;
 
-	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, boolean fromShared, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
 		this.eventBusClient = eventBusClient;
 
 		this.playerId = playerId;
 		this.buildplateId = buildplateId;
+		this.fromShared = fromShared;
 		this.instanceId = instanceId;
 		this.survival = survival;
 		this.night = night;
@@ -144,18 +146,31 @@ public class Instance
 
 		try
 		{
-			this.logger.info("Starting for buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
+			this.logger.info(!this.fromShared ? "Starting for buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})" : "Starting for shared buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
 			this.logger.info("Using port {} internal port {}", this.port, this.serverInternalPort);
 
 			this.requestSender = this.eventBusClient.addRequestSender();
 
 			this.logger.info("Setting up server");
 
-			BuildplateLoadResponse buildplateLoadResponse = this.sendEventBusRequestRaw("load", new BuildplateLoadRequest(this.playerId, this.buildplateId), BuildplateLoadResponse.class).join();
-			if (buildplateLoadResponse == null)
+			BuildplateLoadResponse buildplateLoadResponse;
+			if (!this.fromShared)
 			{
-				this.logger.error("Could not load buildplate information for buildplate {} player {}", this.buildplateId, this.playerId);
-				return;
+				buildplateLoadResponse = this.sendEventBusRequestRaw("load", new BuildplateLoadRequest(this.playerId, this.buildplateId), BuildplateLoadResponse.class).join();
+				if (buildplateLoadResponse == null)
+				{
+					this.logger.error("Could not load buildplate information for buildplate {} player {}", this.buildplateId, this.playerId);
+					return;
+				}
+			}
+			else
+			{
+				buildplateLoadResponse = this.sendEventBusRequestRaw("loadShared", new SharedBuildplateLoadRequest(this.buildplateId), BuildplateLoadResponse.class).join();
+				if (buildplateLoadResponse == null)
+				{
+					this.logger.error("Could not load buildplate information for shared buildplate {}", this.buildplateId);
+					return;
+				}
 			}
 
 			byte[] serverData;
@@ -1054,6 +1069,12 @@ public class Instance
 	private record BuildplateLoadRequest(
 			@NotNull String playerId,
 			@NotNull String buildplateId
+	)
+	{
+	}
+
+	private record SharedBuildplateLoadRequest(
+			@NotNull String sharedBuildplateId
 	)
 	{
 	}

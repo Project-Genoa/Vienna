@@ -52,7 +52,9 @@ public class InstanceManager
 					enum InstanceType
 					{
 						BUILD,
-						PLAY
+						PLAY,
+						SHARED_BUILD,
+						SHARED_PLAY
 					}
 
 					record StartRequest(
@@ -93,6 +95,7 @@ public class InstanceManager
 					boolean survival;
 					boolean saveEnabled;
 					InventoryType inventoryType;
+					boolean fromShared;
 					switch (startRequest.type)
 					{
 						case BUILD ->
@@ -100,12 +103,28 @@ public class InstanceManager
 							survival = false;
 							saveEnabled = true;
 							inventoryType = InventoryType.SYNCED;
+							fromShared = false;
 						}
 						case PLAY ->
 						{
 							survival = true;
 							saveEnabled = false;
 							inventoryType = InventoryType.DISCARD;
+							fromShared = false;
+						}
+						case SHARED_BUILD ->
+						{
+							survival = false;
+							saveEnabled = false;
+							inventoryType = InventoryType.DISCARD;
+							fromShared = true;
+						}
+						case SHARED_PLAY ->
+						{
+							survival = true;
+							saveEnabled = false;
+							inventoryType = InventoryType.DISCARD;
+							fromShared = true;
 						}
 						default ->
 						{
@@ -113,10 +132,11 @@ public class InstanceManager
 							survival = false;
 							saveEnabled = false;
 							inventoryType = InventoryType.DISCARD;
+							fromShared = false;
 						}
 					}
 
-					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, survival, startRequest.night, saveEnabled, inventoryType);
+					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, fromShared, survival, startRequest.night, saveEnabled, inventoryType);
 					if (instance == null)
 					{
 						LogManager.getLogger().error("Error starting buildplate instance {}", instanceId);
