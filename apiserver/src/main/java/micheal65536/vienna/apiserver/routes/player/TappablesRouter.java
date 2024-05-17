@@ -29,10 +29,8 @@ import java.util.UUID;
 
 public class TappablesRouter extends Router
 {
-	public TappablesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull Catalog catalog)
+	public TappablesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull TappablesManager tappablesManager, @NotNull Catalog catalog)
 	{
-		TappablesManager tappablesManager = new TappablesManager(eventBusClient);
-
 		this.addHandler(new Route.Builder(Request.Method.GET, "/locations/$lat/$lon").build(), request ->
 		{
 			String playerId = request.getContextData("playerId");

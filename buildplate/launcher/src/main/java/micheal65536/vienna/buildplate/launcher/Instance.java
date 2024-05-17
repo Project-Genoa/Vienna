@@ -49,9 +49,14 @@ public class Instance
 	private static final long HOST_PLAYER_CONNECT_TIMEOUT = 20000;
 
 	@NotNull
-	public static Instance run(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, boolean fromShared, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	public static Instance run(@NotNull EventBusClient eventBusClient, @Nullable String playerId, @NotNull String buildplateId, @NotNull BuildplateSource buildplateSource, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @Nullable Long shutdownTime, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
-		Instance instance = new Instance(eventBusClient, playerId, buildplateId, fromShared, instanceId, survival, night, saveEnabled, inventoryType, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
+		if (playerId == null && buildplateSource == BuildplateSource.PLAYER)
+		{
+			throw new IllegalArgumentException();
+		}
+
+		Instance instance = new Instance(eventBusClient, playerId, buildplateId, buildplateSource, instanceId, survival, night, saveEnabled, inventoryType, shutdownTime, publicAddress, port, serverInternalPort, javaCmd, fountainBridgeJar, serverTemplateDir, fabricJarName, connectorPluginJar, baseDir, eventBusConnectionString);
 		instance.threadStartedSemaphore.acquireUninterruptibly();
 		new Thread(() ->
 		{
@@ -64,14 +69,16 @@ public class Instance
 
 	private final EventBusClient eventBusClient;
 
+	@Nullable
 	private final String playerId;
 	private final String buildplateId;
-	private final boolean fromShared;
+	private final BuildplateSource buildplateSource;
 	public final String instanceId;
 	private final boolean survival;
 	private final boolean night;
 	private final boolean saveEnabled;
 	private final InventoryType inventoryType;
+	private final Long shutdownTime;
 
 	public final String publicAddress;
 	public final int port;
@@ -105,18 +112,19 @@ public class Instance
 
 	private volatile boolean hostPlayerConnected = false;
 
-	private Instance(@NotNull EventBusClient eventBusClient, @NotNull String playerId, @NotNull String buildplateId, boolean fromShared, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
+	private Instance(@NotNull EventBusClient eventBusClient, @Nullable String playerId, @NotNull String buildplateId, @NotNull BuildplateSource buildplateSource, @NotNull String instanceId, boolean survival, boolean night, boolean saveEnabled, @NotNull InventoryType inventoryType, @Nullable Long shutdownTime, @NotNull String publicAddress, int port, int serverInternalPort, @NotNull String javaCmd, @NotNull File fountainBridgeJar, @NotNull File serverTemplateDir, @NotNull String fabricJarName, @NotNull File connectorPluginJar, @NotNull File baseDir, @NotNull String eventBusConnectionString)
 	{
 		this.eventBusClient = eventBusClient;
 
 		this.playerId = playerId;
 		this.buildplateId = buildplateId;
-		this.fromShared = fromShared;
+		this.buildplateSource = buildplateSource;
 		this.instanceId = instanceId;
 		this.survival = survival;
 		this.night = night;
 		this.saveEnabled = saveEnabled;
 		this.inventoryType = inventoryType;
+		this.shutdownTime = shutdownTime;
 
 		this.publicAddress = publicAddress;
 		this.port = port;
@@ -146,32 +154,33 @@ public class Instance
 
 		try
 		{
-			this.logger.info(!this.fromShared ? "Starting for buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})" : "Starting for shared buildplate {} player {} (survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
+			switch (this.buildplateSource)
+			{
+				case PLAYER ->
+				{
+					this.logger.info("Starting for player {} buildplate {} (survival = {}, saveEnabled = {}, inventoryType = {})", this.playerId, this.buildplateId, this.survival, this.saveEnabled, this.inventoryType);
+				}
+				case SHARED ->
+				{
+					this.logger.info("Starting for shared buildplate {} (player = {}, survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
+				}
+				case ENCOUNTER ->
+				{
+					this.logger.info("Starting for encounter buildplate {} (player = {}, survival = {}, saveEnabled = {}, inventoryType = {})", this.buildplateId, this.playerId, this.survival, this.saveEnabled, this.inventoryType);
+				}
+			}
 			this.logger.info("Using port {} internal port {}", this.port, this.serverInternalPort);
 
 			this.requestSender = this.eventBusClient.addRequestSender();
 
 			this.logger.info("Setting up server");
 
-			BuildplateLoadResponse buildplateLoadResponse;
-			if (!this.fromShared)
+			BuildplateLoadResponse buildplateLoadResponse = switch (this.buildplateSource)
 			{
-				buildplateLoadResponse = this.sendEventBusRequestRaw("load", new BuildplateLoadRequest(this.playerId, this.buildplateId), BuildplateLoadResponse.class).join();
-				if (buildplateLoadResponse == null)
-				{
-					this.logger.error("Could not load buildplate information for buildplate {} player {}", this.buildplateId, this.playerId);
-					return;
-				}
-			}
-			else
-			{
-				buildplateLoadResponse = this.sendEventBusRequestRaw("loadShared", new SharedBuildplateLoadRequest(this.buildplateId), BuildplateLoadResponse.class).join();
-				if (buildplateLoadResponse == null)
-				{
-					this.logger.error("Could not load buildplate information for shared buildplate {}", this.buildplateId);
-					return;
-				}
-			}
+				case PLAYER -> this.sendEventBusRequestRaw("load", new BuildplateLoadRequest(this.playerId, this.buildplateId), BuildplateLoadResponse.class).join();
+				case SHARED -> this.sendEventBusRequestRaw("loadShared", new SharedBuildplateLoadRequest(this.buildplateId), BuildplateLoadResponse.class).join();
+				case ENCOUNTER -> this.sendEventBusRequestRaw("loadEncounter", new EncounterBuildplateLoadRequest(this.buildplateId), BuildplateLoadResponse.class).join();
+			};
 
 			byte[] serverData;
 			try
@@ -325,7 +334,14 @@ public class Instance
 				Instance.this.logger.info("Server is ready");
 				Instance.this.startBridgeProcess();
 				Instance.this.readyFuture.complete(null);
-				Instance.this.startHostPlayerConnectTimeout();
+				if (Instance.this.shutdownTime != null)
+				{
+					Instance.this.startShutdownTimer();
+				}
+				else
+				{
+					Instance.this.startHostPlayerConnectTimeout();
+				}
 			}
 			case "saved" ->
 			{
@@ -380,7 +396,7 @@ public class Instance
 				PlayerConnectedRequest playerConnectedRequest = this.readJson(request.data, PlayerConnectedRequest.class);
 				if (playerConnectedRequest != null)
 				{
-					if (!this.hostPlayerConnected && !playerConnectedRequest.uuid().equals(this.playerId))
+					if (this.playerId != null && !this.hostPlayerConnected && !playerConnectedRequest.uuid().equals(this.playerId))
 					{
 						this.logger.info("Rejecting player connection for player {} because the host player must connect first", playerConnectedRequest.uuid());
 						return new PlayerConnectedResponse(false, null);
@@ -391,7 +407,7 @@ public class Instance
 					{
 						this.logger.info("Player {} has connected", playerConnectedRequest.uuid());
 
-						if (!this.hostPlayerConnected && playerConnectedRequest.uuid().equals(this.playerId))
+						if (this.playerId != null && !this.hostPlayerConnected && playerConnectedRequest.uuid().equals(this.playerId))
 						{
 							this.hostPlayerConnected = true;
 						}
@@ -410,7 +426,7 @@ public class Instance
 					{
 						this.logger.info("Player {} has disconnected", playerDisconnectedRequest.playerId());
 
-						if (playerDisconnectedRequest.playerId().equals(this.playerId))
+						if (this.shutdownTime == null && this.playerId != null && playerDisconnectedRequest.playerId().equals(this.playerId))
 						{
 							this.logger.info("Host player has disconnected, beginning shutdown");
 							this.beginShutdown();
@@ -477,16 +493,14 @@ public class Instance
 	@NotNull
 	private <T> CompletableFuture<T> sendEventBusRequest(@NotNull String type, @NotNull Object object, @Nullable Class<T> responseClass)
 	{
-		record RequestWithBuildplateIds(
-				@NotNull String playerId,
-				@NotNull String buildplateId,
+		record RequestWithInstanceId(
 				@NotNull String instanceId,
 				@NotNull Object request
 		)
 		{
 		}
 
-		RequestWithBuildplateIds request = new RequestWithBuildplateIds(this.playerId, this.buildplateId, this.instanceId, object);
+		RequestWithInstanceId request = new RequestWithInstanceId(this.instanceId, object);
 
 		try
 		{
@@ -972,6 +986,38 @@ public class Instance
 		}).start();
 	}
 
+	private void startShutdownTimer()
+	{
+		new Thread(() ->
+		{
+			if (this.shutdownTime != null)
+			{
+				long currentTime = System.currentTimeMillis();
+				while (currentTime < this.shutdownTime)
+				{
+					long duration = this.shutdownTime - currentTime;
+					if (duration > 0)
+					{
+						this.logger.info("Server will shut down in {} milliseconds", duration);
+						try
+						{
+							Thread.sleep(duration > 2000 ? (duration / 2) : duration);
+						}
+						catch (InterruptedException exception)
+						{
+							throw new AssertionError(exception);
+						}
+					}
+
+					currentTime = System.currentTimeMillis();
+				}
+			}
+
+			this.logger.info("Shutdown time has been reached, shutting down");
+			this.beginShutdown();
+		}).start();
+	}
+
 	private void beginShutdown()
 	{
 		new Thread(() ->
@@ -1079,9 +1125,22 @@ public class Instance
 	{
 	}
 
+	private record EncounterBuildplateLoadRequest(
+			@NotNull String encounterBuildplateId
+	)
+	{
+	}
+
 	private record BuildplateLoadResponse(
 			@NotNull String serverDataBase64
 	)
 	{
+	}
+
+	public enum BuildplateSource
+	{
+		PLAYER,
+		SHARED,
+		ENCOUNTER
 	}
 }

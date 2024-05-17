@@ -21,6 +21,7 @@ import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.global.EncounterBuildplates;
 import micheal65536.vienna.db.model.global.SharedBuildplates;
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Buildplates;
@@ -36,6 +37,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.stream.Stream;
 
 public final class BuildplateInstanceRequestHandler
@@ -88,81 +90,91 @@ public final class BuildplateInstanceRequestHandler
 							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoadShared(sharedBuildplateLoadRequest.sharedBuildplateId);
 							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
 						}
-						case "saved" ->
+						case "loadEncounter" ->
 						{
-							RequestWithBuildplateId<WorldSavedMessage> requestWithBuildplateId = readRequest(request.data, WorldSavedMessage.class);
-							if (requestWithBuildplateId == null)
+							EncounterBuildplateLoadRequest encounterBuildplateLoadRequest = readRawRequest(request.data, EncounterBuildplateLoadRequest.class);
+							if (encounterBuildplateLoadRequest == null)
 							{
 								return null;
 							}
-							return BuildplateInstanceRequestHandler.this.handleSaved(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request.dataBase64(), request.timestamp) ? "" : null;
+							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoadEncounter(encounterBuildplateLoadRequest.encounterBuildplateId);
+							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
+						}
+						case "saved" ->
+						{
+							RequestWithInstanceId<WorldSavedMessage> requestWithInstanceId = readRequest(request.data, WorldSavedMessage.class);
+							if (requestWithInstanceId == null)
+							{
+								return null;
+							}
+							return BuildplateInstanceRequestHandler.this.handleSaved(requestWithInstanceId.instanceId, requestWithInstanceId.request.dataBase64(), request.timestamp) ? "" : null;
 						}
 						case "playerConnected" ->
 						{
-							RequestWithBuildplateId<PlayerConnectedRequest> requestWithBuildplateId = readRequest(request.data, PlayerConnectedRequest.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<PlayerConnectedRequest> requestWithInstanceId = readRequest(request.data, PlayerConnectedRequest.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							PlayerConnectedResponse playerConnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerConnected(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							PlayerConnectedResponse playerConnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerConnected(requestWithInstanceId.instanceId, requestWithInstanceId.request);
 							return playerConnectedResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(playerConnectedResponse) : null;
 						}
 						case "playerDisconnected" ->
 						{
-							RequestWithBuildplateId<PlayerDisconnectedRequest> requestWithBuildplateId = readRequest(request.data, PlayerDisconnectedRequest.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<PlayerDisconnectedRequest> requestWithInstanceId = readRequest(request.data, PlayerDisconnectedRequest.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							PlayerDisconnectedResponse playerDisconnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerDisconnected(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							PlayerDisconnectedResponse playerDisconnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerDisconnected(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp);
 							return playerDisconnectedResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(playerDisconnectedResponse) : null;
 						}
 						case "getInventory" ->
 						{
-							RequestWithBuildplateId<String> requestWithBuildplateId = readRequest(request.data, String.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<String> requestWithInstanceId = readRequest(request.data, String.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							InventoryResponse inventoryResponse = BuildplateInstanceRequestHandler.this.handleGetInventory(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							InventoryResponse inventoryResponse = BuildplateInstanceRequestHandler.this.handleGetInventory(requestWithInstanceId.instanceId, requestWithInstanceId.request);
 							return inventoryResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(inventoryResponse) : null;
 						}
 						case "inventoryAdd" ->
 						{
-							RequestWithBuildplateId<InventoryAddItemMessage> requestWithBuildplateId = readRequest(request.data, InventoryAddItemMessage.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<InventoryAddItemMessage> requestWithInstanceId = readRequest(request.data, InventoryAddItemMessage.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							return BuildplateInstanceRequestHandler.this.handleInventoryAdd(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request, request.timestamp) ? "" : null;
+							return BuildplateInstanceRequestHandler.this.handleInventoryAdd(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp) ? "" : null;
 						}
 						case "inventoryRemove" ->
 						{
-							RequestWithBuildplateId<InventoryRemoveItemRequest> requestWithBuildplateId = readRequest(request.data, InventoryRemoveItemRequest.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<InventoryRemoveItemRequest> requestWithInstanceId = readRequest(request.data, InventoryRemoveItemRequest.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							Object response = BuildplateInstanceRequestHandler.this.handleInventoryRemove(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request);
+							Object response = BuildplateInstanceRequestHandler.this.handleInventoryRemove(requestWithInstanceId.instanceId, requestWithInstanceId.request);
 							return response != null ? new Gson().toJson(response) : null;
 						}
 						case "inventoryUpdateWear" ->
 						{
-							RequestWithBuildplateId<InventoryUpdateItemWearMessage> requestWithBuildplateId = readRequest(request.data, InventoryUpdateItemWearMessage.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<InventoryUpdateItemWearMessage> requestWithInstanceId = readRequest(request.data, InventoryUpdateItemWearMessage.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							return BuildplateInstanceRequestHandler.this.handleInventoryUpdateWear(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request) ? "" : null;
+							return BuildplateInstanceRequestHandler.this.handleInventoryUpdateWear(requestWithInstanceId.instanceId, requestWithInstanceId.request) ? "" : null;
 						}
 						case "inventorySetHotbar" ->
 						{
-							RequestWithBuildplateId<InventorySetHotbarMessage> requestWithBuildplateId = readRequest(request.data, InventorySetHotbarMessage.class);
-							if (requestWithBuildplateId == null)
+							RequestWithInstanceId<InventorySetHotbarMessage> requestWithInstanceId = readRequest(request.data, InventorySetHotbarMessage.class);
+							if (requestWithInstanceId == null)
 							{
 								return null;
 							}
-							return BuildplateInstanceRequestHandler.this.handleInventorySetHotbar(requestWithBuildplateId.playerId, requestWithBuildplateId.buildplateId, requestWithBuildplateId.instanceId, requestWithBuildplateId.request) ? "" : null;
+							return BuildplateInstanceRequestHandler.this.handleInventorySetHotbar(requestWithInstanceId.instanceId, requestWithInstanceId.request) ? "" : null;
 						}
 						default ->
 						{
@@ -195,6 +207,12 @@ public final class BuildplateInstanceRequestHandler
 
 	private record SharedBuildplateLoadRequest(
 			@NotNull String sharedBuildplateId
+	)
+	{
+	}
+
+	private record EncounterBuildplateLoadRequest(
+			@NotNull String encounterBuildplateId
 	)
 	{
 	}
@@ -255,8 +273,45 @@ public final class BuildplateInstanceRequestHandler
 		return new BuildplateLoadResponse(serverDataBase64);
 	}
 
-	private boolean handleSaved(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull String dataBase64, long timestamp) throws DatabaseException
+	@Nullable
+	private BuildplateLoadResponse handleLoadEncounter(@NotNull String encounterBuildplateId) throws DatabaseException
 	{
+		EarthDB.Results results = new EarthDB.Query(false)
+				.get("encounterBuildplates", "", EncounterBuildplates.class)
+				.execute(this.earthDB);
+		EncounterBuildplates encounterBuildplates = (EncounterBuildplates) results.get("encounterBuildplates").value();
+
+		EncounterBuildplates.EncounterBuildplate encounterBuildplate = encounterBuildplates.getEncounterBuildplate(encounterBuildplateId);
+		if (encounterBuildplate == null)
+		{
+			return null;
+		}
+
+		byte[] serverData = this.objectStoreClient.get(encounterBuildplate.serverDataObjectId).join();
+		if (serverData == null)
+		{
+			LogManager.getLogger().error("Data object {} for encounter buildplate {} could not be loaded from object store", encounterBuildplate.serverDataObjectId, encounterBuildplateId);
+			return null;
+		}
+		String serverDataBase64 = Base64.getEncoder().encodeToString(serverData);
+
+		return new BuildplateLoadResponse(serverDataBase64);
+	}
+
+	private boolean handleSaved(@NotNull String instanceId, @NotNull String dataBase64, long timestamp) throws DatabaseException
+	{
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return false;
+		}
+		if (instanceInfo.type() != BuildplateInstancesManager.InstanceType.BUILD)
+		{
+			return false;
+		}
+		String playerId = instanceInfo.playerId();
+		String buildplateId = instanceInfo.buildplateId();
+
 		byte[] serverData;
 		try
 		{
@@ -381,7 +436,7 @@ public final class BuildplateInstanceRequestHandler
 	}
 
 	@Nullable
-	private PlayerConnectedResponse handlePlayerConnected(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull PlayerConnectedRequest playerConnectedRequest) throws DatabaseException
+	private PlayerConnectedResponse handlePlayerConnected(@NotNull String instanceId, @NotNull PlayerConnectedRequest playerConnectedRequest) throws DatabaseException
 	{
 		// TODO: check join code etc.
 
@@ -452,6 +507,57 @@ public final class BuildplateInstanceRequestHandler
 						Arrays.stream(sharedBuildplate.hotbar).map(item -> item != null && item.count() > 0 ? new InventoryResponse.HotbarItem(item.uuid(), item.count(), item.instanceId()) : null).toArray(InventoryResponse.HotbarItem[]::new)
 				);
 			}
+			case ENCOUNTER ->
+			{
+				EarthDB.Results results = new EarthDB.Query(true)
+						.get("inventory", playerConnectedRequest.uuid(), Inventory.class)
+						.get("hotbar", playerConnectedRequest.uuid(), Hotbar.class)
+						.then(results1 ->
+						{
+							Inventory inventory = (Inventory) results1.get("inventory").value();
+							Hotbar hotbar = (Hotbar) results1.get("hotbar").value();
+
+							InventoryResponse.HotbarItem[] inventoryResponseHotbar = new InventoryResponse.HotbarItem[7];
+							HashMap<String, Integer> inventoryResponseStackableItems = new HashMap<>();
+							LinkedList<InventoryResponse.Item> inventoryResponseNonStackableItems = new LinkedList<>();
+							for (int index = 0; index < 7; index++)
+							{
+								Hotbar.Item item = hotbar.items[index];
+								if (item != null)
+								{
+									if (item.instanceId() == null)
+									{
+										inventory.takeItems(item.uuid(), item.count());
+										inventoryResponseStackableItems.put(item.uuid(), inventoryResponseStackableItems.getOrDefault(item.uuid(), 0) + item.count());
+										inventoryResponseHotbar[index] = new InventoryResponse.HotbarItem(item.uuid(), item.count(), null);
+									}
+									else
+									{
+										int wear = inventory.takeItems(item.uuid(), new String[]{item.instanceId()})[0].wear();
+										inventoryResponseNonStackableItems.add(new InventoryResponse.Item(item.uuid(), 1, item.instanceId(), wear));
+										inventoryResponseHotbar[index] = new InventoryResponse.HotbarItem(item.uuid(), 1, item.instanceId());
+									}
+								}
+							}
+							hotbar.limitToInventory(inventory);
+
+							InventoryResponse inventoryResponse = new InventoryResponse(
+									Stream.concat(
+											inventoryResponseStackableItems.entrySet().stream().map(entry -> new InventoryResponse.Item(entry.getKey(), entry.getValue(), null, 0)),
+											inventoryResponseNonStackableItems.stream()
+									).toArray(InventoryResponse.Item[]::new),
+									inventoryResponseHotbar
+							);
+
+							return new EarthDB.Query(true)
+									.update("inventory", playerConnectedRequest.uuid(), inventory)
+									.update("hotbar", playerConnectedRequest.uuid(), hotbar)
+									.extra("inventoryResponse", inventoryResponse);
+						})
+						.execute(this.earthDB);
+
+				initialInventoryContents = (InventoryResponse) results.getExtra("inventoryResponse");
+			}
 			default ->
 			{
 				// shouldn't happen, safe default
@@ -468,15 +574,94 @@ public final class BuildplateInstanceRequestHandler
 	}
 
 	@Nullable
-	private PlayerDisconnectedResponse handlePlayerDisconnected(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull PlayerDisconnectedRequest playerDisconnectedRequest) throws DatabaseException
+	private PlayerDisconnectedResponse handlePlayerDisconnected(@NotNull String instanceId, @NotNull PlayerDisconnectedRequest playerDisconnectedRequest, long timestamp) throws DatabaseException
 	{
-		// TODO
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return null;
+		}
+
+		boolean usesBackpack = instanceInfo.type() == BuildplateInstancesManager.InstanceType.ENCOUNTER;
+		if (usesBackpack)
+		{
+			InventoryResponse backpackContents = playerDisconnectedRequest.backpackContents();
+			if (backpackContents == null)
+			{
+				LogManager.getLogger().error("Expected backpack contents in player disconnected request");
+				return null;
+			}
+
+			EarthDB.Results results = new EarthDB.Query(true)
+					.get("inventory", playerDisconnectedRequest.playerId(), Inventory.class)
+					.get("journal", playerDisconnectedRequest.playerId(), Journal.class)
+					.then(results1 ->
+					{
+						Inventory inventory = (Inventory) results1.get("inventory").value();
+						Journal journal = (Journal) results1.get("journal").value();
+
+						LinkedList<String> unlockedJournalItems = new LinkedList<>();
+						for (InventoryResponse.Item item : backpackContents.items())
+						{
+							ItemsCatalog.Item catalogItem = Arrays.stream(this.catalog.itemsCatalog.items()).filter(catalogItem1 -> catalogItem1.id().equals(item.id())).findFirst().orElse(null);
+							if (catalogItem == null)
+							{
+								LogManager.getLogger().error("Backpack contents contained item that is not in item catalog");
+								continue;
+							}
+							if (!catalogItem.stacks() && item.instanceId() == null)
+							{
+								LogManager.getLogger().error("Backpack contents contained non-stackable item without instance ID");
+								continue;
+							}
+
+							if (catalogItem.stacks())
+							{
+								inventory.addItems(item.id(), item.count());
+							}
+							else
+							{
+								inventory.addItems(item.id(), new NonStackableItemInstance[]{new NonStackableItemInstance(item.instanceId(), item.wear())});
+							}
+
+							journal.touchItem(item.id(), timestamp);
+							if (journal.getItem(item.id()).amountCollected() == 0)
+							{
+								unlockedJournalItems.add(item.id());
+							}
+							journal.addCollectedItem(item.id(), item.count());
+						}
+
+						Hotbar hotbar = new Hotbar();
+						for (int index = 0; index < 7; index++)
+						{
+							InventoryResponse.HotbarItem hotbarItem = backpackContents.hotbar()[index];
+							if (hotbarItem != null)
+							{
+								hotbar.items[index] = new Hotbar.Item(hotbarItem.id(), hotbarItem.count(), hotbarItem.instanceId());
+							}
+						}
+						hotbar.limitToInventory(inventory);
+
+						EarthDB.Query query = new EarthDB.Query(true)
+								.update("inventory", playerDisconnectedRequest.playerId(), inventory)
+								.update("hotbar", playerDisconnectedRequest.playerId(), hotbar)
+								.update("journal", playerDisconnectedRequest.playerId(), journal);
+						for (String itemId : unlockedJournalItems)
+						{
+							query.then(ActivityLogUtils.addEntry(playerDisconnectedRequest.playerId(), new ActivityLog.JournalItemUnlockedEntry(timestamp, itemId)));
+							query.then(TokenUtils.addToken(playerDisconnectedRequest.playerId(), new Tokens.JournalItemUnlockedToken(itemId)));
+						}
+						return query;
+					})
+					.execute(this.earthDB);
+		}
 
 		return new PlayerDisconnectedResponse();
 	}
 
 	@Nullable
-	private InventoryResponse handleGetInventory(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull String requestedInventoryPlayerId) throws DatabaseException
+	private InventoryResponse handleGetInventory(@NotNull String instanceId, @NotNull String requestedInventoryPlayerId) throws DatabaseException
 	{
 		EarthDB.Results results = new EarthDB.Query(false)
 				.get("inventory", requestedInventoryPlayerId, Inventory.class)
@@ -498,7 +683,7 @@ public final class BuildplateInstanceRequestHandler
 		);
 	}
 
-	private boolean handleInventoryAdd(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryAddItemMessage inventoryAddItemMessage, long timestamp) throws DatabaseException
+	private boolean handleInventoryAdd(@NotNull String instanceId, @NotNull InventoryAddItemMessage inventoryAddItemMessage, long timestamp) throws DatabaseException
 	{
 		ItemsCatalog.Item catalogItem = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item -> item.id().equals(inventoryAddItemMessage.itemId())).findFirst().orElse(null);
 		if (catalogItem == null)
@@ -540,8 +725,8 @@ public final class BuildplateInstanceRequestHandler
 							.update("journal", inventoryAddItemMessage.playerId(), journal);
 					if (journalItemUnlocked)
 					{
-						query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.JournalItemUnlockedEntry(timestamp, inventoryAddItemMessage.itemId())));
-						query.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId())));
+						query.then(ActivityLogUtils.addEntry(inventoryAddItemMessage.playerId(), new ActivityLog.JournalItemUnlockedEntry(timestamp, inventoryAddItemMessage.itemId())));
+						query.then(TokenUtils.addToken(inventoryAddItemMessage.playerId(), new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId())));
 					}
 					return query;
 				})
@@ -550,7 +735,7 @@ public final class BuildplateInstanceRequestHandler
 	}
 
 	@Nullable
-	private Object handleInventoryRemove(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryRemoveItemRequest inventoryRemoveItemRequest) throws DatabaseException
+	private Object handleInventoryRemove(@NotNull String instanceId, @NotNull InventoryRemoveItemRequest inventoryRemoveItemRequest) throws DatabaseException
 	{
 		EarthDB.Results results = new EarthDB.Query(true)
 				.get("inventory", inventoryRemoveItemRequest.playerId(), Inventory.class)
@@ -602,7 +787,7 @@ public final class BuildplateInstanceRequestHandler
 		return results.getExtra("result");
 	}
 
-	private boolean handleInventoryUpdateWear(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventoryUpdateItemWearMessage inventoryUpdateItemWearMessage) throws DatabaseException
+	private boolean handleInventoryUpdateWear(@NotNull String instanceId, @NotNull InventoryUpdateItemWearMessage inventoryUpdateItemWearMessage) throws DatabaseException
 	{
 		EarthDB.Results results = new EarthDB.Query(true)
 				.get("inventory", inventoryUpdateItemWearMessage.playerId(), Inventory.class)
@@ -632,7 +817,7 @@ public final class BuildplateInstanceRequestHandler
 		return true;
 	}
 
-	private boolean handleInventorySetHotbar(@NotNull String playerId, @NotNull String buildplateId, @NotNull String instanceId, @NotNull InventorySetHotbarMessage inventorySetHotbarMessage) throws DatabaseException
+	private boolean handleInventorySetHotbar(@NotNull String instanceId, @NotNull InventorySetHotbarMessage inventorySetHotbarMessage) throws DatabaseException
 	{
 		EarthDB.Results results = new EarthDB.Query(true)
 				.get("inventory", inventorySetHotbarMessage.playerId(), Inventory.class)
@@ -657,12 +842,12 @@ public final class BuildplateInstanceRequestHandler
 	}
 
 	@Nullable
-	private static <T> RequestWithBuildplateId<T> readRequest(@NotNull String string, @NotNull Class<T> requestClass)
+	private static <T> BuildplateInstanceRequestHandler.RequestWithInstanceId<T> readRequest(@NotNull String string, @NotNull Class<T> requestClass)
 	{
 		try
 		{
-			TypeToken<?> typeToken = TypeToken.getParameterized(RequestWithBuildplateId.class, requestClass);
-			RequestWithBuildplateId<T> request = (RequestWithBuildplateId<T>) new Gson().fromJson(string, typeToken);
+			TypeToken<?> typeToken = TypeToken.getParameterized(RequestWithInstanceId.class, requestClass);
+			RequestWithInstanceId<T> request = (RequestWithInstanceId<T>) new Gson().fromJson(string, typeToken);
 			return request;
 		}
 		catch (Exception exception)
@@ -687,9 +872,7 @@ public final class BuildplateInstanceRequestHandler
 		}
 	}
 
-	private record RequestWithBuildplateId<T>(
-			@NotNull String playerId,
-			@NotNull String buildplateId,
+	private record RequestWithInstanceId<T>(
 			@NotNull String instanceId,
 			@NotNull T request
 	)

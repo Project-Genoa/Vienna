@@ -46,9 +46,33 @@ public final class BuildplateInstancesManager
 	}
 
 	@Nullable
-	public String requestBuildplateInstance(@NotNull String playerId, @NotNull String buildplateId, @NotNull InstanceType type, boolean night)
+	public String requestBuildplateInstance(@Nullable String playerId, @Nullable String encounterId, @NotNull String buildplateId, @NotNull InstanceType type, long shutdownTime, boolean night)
 	{
-		LogManager.getLogger().info("Finding buildplate instance for player {} buildplate {} type {}", playerId, buildplateId, type);
+		if (playerId == null && type != InstanceType.ENCOUNTER)
+		{
+			throw new IllegalArgumentException();
+		}
+		if (encounterId != null && type != InstanceType.ENCOUNTER)
+		{
+			throw new IllegalArgumentException();
+		}
+
+		if (playerId != null && encounterId != null)
+		{
+			LogManager.getLogger().info("Finding buildplate instance for buildplate {} type {} encounter {} player {}", buildplateId, type, encounterId, playerId);
+		}
+		else if (playerId != null)
+		{
+			LogManager.getLogger().info("Finding buildplate instance for buildplate {} type {} player {}", buildplateId, type, playerId);
+		}
+		else if (encounterId != null)
+		{
+			LogManager.getLogger().info("Finding buildplate instance for buildplate {} type {} encounter {}", buildplateId, type, encounterId);
+		}
+		else
+		{
+			LogManager.getLogger().info("Finding buildplate instance for buildplate {} type {}", buildplateId, type);
+		}
 
 		synchronized (this.instances)
 		{
@@ -58,17 +82,24 @@ public final class BuildplateInstancesManager
 				for (String instanceId : instanceIds)
 				{
 					InstanceInfo instanceInfo = this.instances.getOrDefault(instanceId, null);
-					if (instanceInfo != null && instanceInfo.playerId.equals(playerId) && instanceInfo.type == type)
+					if (instanceInfo != null)
 					{
-						LogManager.getLogger().info("Found existing buildplate instance {}", instanceId);
-						return instanceId;
+						if (
+								instanceInfo.type == type &&
+										((instanceInfo.playerId == null && playerId == null) || (instanceInfo.playerId != null && playerId != null && instanceInfo.playerId.equals(playerId))) &&
+										((instanceInfo.encounterId == null && encounterId == null) || (instanceInfo.encounterId != null && encounterId != null && instanceInfo.encounterId.equals(encounterId)))
+						)
+						{
+							LogManager.getLogger().info("Found existing buildplate instance {}", instanceId);
+							return instanceId;
+						}
 					}
 				}
 			}
 		}
 
 		LogManager.getLogger().info("Did not find existing instance, starting new instance");
-		String instanceId = this.requestSender.request("buildplates", "start", new Gson().toJson(new StartRequest(playerId, buildplateId, night, type))).join();
+		String instanceId = this.requestSender.request("buildplates", "start", new Gson().toJson(new StartRequest(playerId, encounterId, buildplateId, night, type, shutdownTime))).join();
 		if (instanceId == null)
 		{
 			LogManager.getLogger().error("Buildplate start request was rejected/ignored");
@@ -132,6 +163,11 @@ public final class BuildplateInstancesManager
 				try
 				{
 					startNotification = new Gson().fromJson(event.data, StartNotification.class);
+					if (startNotification.playerId == null && startNotification.type != InstanceType.ENCOUNTER)
+					{
+						LogManager.getLogger().warn("Bad start notification");
+						return;
+					}
 
 					synchronized (this.instances)
 					{
@@ -140,6 +176,7 @@ public final class BuildplateInstancesManager
 								startNotification.type,
 								startNotification.instanceId,
 								startNotification.playerId,
+								startNotification.encounterId,
 								startNotification.buildplateId,
 								startNotification.address,
 								startNotification.port,
@@ -175,6 +212,7 @@ public final class BuildplateInstancesManager
 								instanceInfo.type,
 								instanceInfo.instanceId,
 								instanceInfo.playerId,
+								instanceInfo.encounterId,
 								instanceInfo.buildplateId,
 								instanceInfo.address,
 								instanceInfo.port,
@@ -205,10 +243,12 @@ public final class BuildplateInstancesManager
 	}
 
 	private record StartRequest(
-			@NotNull String playerId,
+			@Nullable String playerId,
+			@Nullable String encounterId,
 			@NotNull String buildplateId,
 			boolean night,
-			@NotNull InstanceType type
+			@NotNull InstanceType type,
+			long shutdownTime
 	)
 	{
 	}
@@ -222,7 +262,8 @@ public final class BuildplateInstancesManager
 
 	private record StartNotification(
 			@NotNull String instanceId,
-			@NotNull String playerId,
+			@Nullable String playerId,
+			@Nullable String encounterId,
 			@NotNull String buildplateId,
 			@NotNull String address,
 			int port,
@@ -236,7 +277,8 @@ public final class BuildplateInstancesManager
 		BUILD,
 		PLAY,
 		SHARED_BUILD,
-		SHARED_PLAY
+		SHARED_PLAY,
+		ENCOUNTER
 	}
 
 	public record InstanceInfo(
@@ -244,7 +286,8 @@ public final class BuildplateInstancesManager
 
 			@NotNull String instanceId,
 
-			@NotNull String playerId,
+			@Nullable String playerId,
+			@Nullable String encounterId,
 			@NotNull String buildplateId,
 
 			@NotNull String address,

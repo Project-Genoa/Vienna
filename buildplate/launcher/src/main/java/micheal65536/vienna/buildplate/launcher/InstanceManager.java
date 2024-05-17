@@ -54,21 +54,25 @@ public class InstanceManager
 						BUILD,
 						PLAY,
 						SHARED_BUILD,
-						SHARED_PLAY
+						SHARED_PLAY,
+						ENCOUNTER
 					}
 
 					record StartRequest(
-							@NotNull String playerId,
+							@Nullable String playerId,
+							@Nullable String encounterId,
 							@NotNull String buildplateId,
 							boolean night,
-							@NotNull InstanceType type
+							@NotNull InstanceType type,
+							long shutdownTime
 					)
 					{
 					}
 
 					record StartNotification(
 							@NotNull String instanceId,
-							@NotNull String playerId,
+							@Nullable String playerId,
+							@Nullable String encounterId,
 							@NotNull String buildplateId,
 							@NotNull String address,
 							int port,
@@ -88,14 +92,11 @@ public class InstanceManager
 						return null;
 					}
 
-					String instanceId = UUID.randomUUID().toString();
-
-					LogManager.getLogger().info("Starting buildplate instance {} for player {} buildplate {}", instanceId, startRequest.playerId, startRequest.buildplateId);
-
 					boolean survival;
 					boolean saveEnabled;
 					InventoryType inventoryType;
-					boolean fromShared;
+					Instance.BuildplateSource buildplateSource;
+					Long shutdownTime;
 					switch (startRequest.type)
 					{
 						case BUILD ->
@@ -103,40 +104,58 @@ public class InstanceManager
 							survival = false;
 							saveEnabled = true;
 							inventoryType = InventoryType.SYNCED;
-							fromShared = false;
+							buildplateSource = Instance.BuildplateSource.PLAYER;
+							shutdownTime = null;
 						}
 						case PLAY ->
 						{
 							survival = true;
 							saveEnabled = false;
 							inventoryType = InventoryType.DISCARD;
-							fromShared = false;
+							buildplateSource = Instance.BuildplateSource.PLAYER;
+							shutdownTime = null;
 						}
 						case SHARED_BUILD ->
 						{
 							survival = false;
 							saveEnabled = false;
 							inventoryType = InventoryType.DISCARD;
-							fromShared = true;
+							buildplateSource = Instance.BuildplateSource.SHARED;
+							shutdownTime = null;
 						}
 						case SHARED_PLAY ->
 						{
 							survival = true;
 							saveEnabled = false;
 							inventoryType = InventoryType.DISCARD;
-							fromShared = true;
+							buildplateSource = Instance.BuildplateSource.SHARED;
+							shutdownTime = null;
+						}
+						case ENCOUNTER ->
+						{
+							survival = true;
+							saveEnabled = false;
+							inventoryType = InventoryType.BACKPACK;
+							buildplateSource = Instance.BuildplateSource.ENCOUNTER;
+							shutdownTime = startRequest.shutdownTime;
 						}
 						default ->
 						{
-							// shouldn't happen, just choose some safe defaults
-							survival = false;
-							saveEnabled = false;
-							inventoryType = InventoryType.DISCARD;
-							fromShared = false;
+							LogManager.getLogger().warn("Bad start request");
+							return null;
 						}
 					}
+					if (buildplateSource == Instance.BuildplateSource.PLAYER && startRequest.playerId == null)
+					{
+						LogManager.getLogger().warn("Bad start request");
+						return null;
+					}
 
-					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, fromShared, survival, startRequest.night, saveEnabled, inventoryType);
+					String instanceId = UUID.randomUUID().toString();
+
+					LogManager.getLogger().info("Starting buildplate instance {}", instanceId);
+
+					Instance instance = InstanceManager.this.starter.startInstance(instanceId, startRequest.playerId, startRequest.buildplateId, buildplateSource, survival, startRequest.night, saveEnabled, inventoryType, shutdownTime);
 					if (instance == null)
 					{
 						LogManager.getLogger().error("Error starting buildplate instance {}", instanceId);
@@ -145,6 +164,7 @@ public class InstanceManager
 					InstanceManager.this.sendEventBusMessageJson("started", new StartNotification(
 							instanceId,
 							startRequest.playerId,
+							startRequest.encounterId,
 							startRequest.buildplateId,
 							instance.publicAddress,
 							instance.port,

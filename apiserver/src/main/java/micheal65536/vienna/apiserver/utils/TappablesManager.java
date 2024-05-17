@@ -20,6 +20,7 @@ public final class TappablesManager
 	private final RequestSender requestSender;
 
 	private final HashMap<String, HashMap<String, Tappable>> tappables = new HashMap<>();
+	private final HashMap<String, HashMap<String, Encounter>> encounters = new HashMap<>();
 	private int pruneCounter = 0;
 
 	public TappablesManager(@NotNull EventBusClient eventBusClient)
@@ -61,6 +62,24 @@ public final class TappablesManager
 	}
 
 	@NotNull
+	public Encounter[] getEncountersAround(float lat, float lon, float radius)
+	{
+		return Arrays.stream(getTileIdsAround(lat, lon, radius))
+				.map(tileId -> this.encounters.getOrDefault(tileId, null))
+				.filter(encounters -> encounters != null)
+				.map(HashMap::values)
+				.flatMap(Collection::stream)
+				.filter(encounter ->
+				{
+					float dx = lonToX(encounter.lon) * (1 << 16) - lonToX(lon) * (1 << 16);
+					float dy = latToY(encounter.lat) * (1 << 16) - latToY(lat) * (1 << 16);
+					float distanceSquared = dx * dx + dy * dy;
+					return distanceSquared <= radius * radius;
+				})
+				.toArray(Encounter[]::new);
+	}
+
+	@NotNull
 	private static String[] getTileIdsAround(float lat, float lon, float radius)
 	{
 		int tileX = xToTile(lonToX(lon));
@@ -79,6 +98,21 @@ public final class TappablesManager
 			if (tappable != null)
 			{
 				return tappable;
+			}
+		}
+		return null;
+	}
+
+	@Nullable
+	public Encounter getEncounterWithId(@NotNull String id, @NotNull String tileId)
+	{
+		HashMap<String, Encounter> encountersInTile = this.encounters.getOrDefault(tileId, null);
+		if (encountersInTile != null)
+		{
+			Encounter encounter = encountersInTile.getOrDefault(id, null);
+			if (encounter != null)
+			{
+				return encounter;
 			}
 		}
 		return null;
@@ -124,7 +158,27 @@ public final class TappablesManager
 				if (this.pruneCounter++ == 10)
 				{
 					this.pruneCounter = 0;
-					this.pruneTappables(event.timestamp);
+					this.prune(event.timestamp);
+				}
+			}
+			case "encounterSpawn" ->
+			{
+				Encounter encounter;
+				try
+				{
+					encounter = new Gson().fromJson(event.data, Encounter.class);
+				}
+				catch (Exception exception)
+				{
+					LogManager.getLogger().error("Could not deserialise encounter spawn event", exception);
+					break;
+				}
+				this.addEncounter(encounter);
+
+				if (this.pruneCounter++ == 10)
+				{
+					this.pruneCounter = 0;
+					this.prune(event.timestamp);
 				}
 			}
 		}
@@ -136,7 +190,13 @@ public final class TappablesManager
 		this.tappables.computeIfAbsent(tileId, tileId1 -> new HashMap<>()).put(tappable.id, tappable);
 	}
 
-	private void pruneTappables(long currentTime)
+	private void addEncounter(@NotNull Encounter encounter)
+	{
+		String tileId = locationToTileId(encounter.lat, encounter.lon);
+		this.encounters.computeIfAbsent(tileId, tileId1 -> new HashMap<>()).put(encounter.id, encounter);
+	}
+
+	private void prune(long currentTime)
 	{
 		this.tappables.values().forEach(tileTappables -> tileTappables.entrySet().removeIf(entry ->
 		{
@@ -145,6 +205,14 @@ public final class TappablesManager
 			return expiresAt <= currentTime;
 		}));
 		this.tappables.entrySet().removeIf(entry -> entry.getValue().isEmpty());
+
+		this.encounters.values().forEach(tileEncounters -> tileEncounters.entrySet().removeIf(entry ->
+		{
+			Encounter encounter = entry.getValue();
+			long expiresAt = encounter.spawnTime + encounter.validFor;
+			return expiresAt <= currentTime;
+		}));
+		this.encounters.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 	}
 
 	@NotNull
@@ -204,6 +272,27 @@ public final class TappablesManager
 			)
 			{
 			}
+		}
+	}
+
+	public record Encounter(
+			@NotNull String id,
+			float lat,
+			float lon,
+			long spawnTime,
+			long validFor,
+			@NotNull String icon,
+			@NotNull Rarity rarity,
+			@NotNull String encounterBuildplateId
+	)
+	{
+		public enum Rarity
+		{
+			COMMON,
+			UNCOMMON,
+			RARE,
+			EPIC,
+			LEGENDARY
 		}
 	}
 }

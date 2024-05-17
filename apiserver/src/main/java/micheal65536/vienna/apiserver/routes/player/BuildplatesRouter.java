@@ -24,9 +24,11 @@ import micheal65536.vienna.apiserver.utils.BuildplateInstancesManager;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.ItemWear;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
+import micheal65536.vienna.apiserver.utils.TappablesManager;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
+import micheal65536.vienna.db.model.global.EncounterBuildplates;
 import micheal65536.vienna.db.model.global.SharedBuildplates;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
@@ -44,7 +46,7 @@ public class BuildplatesRouter extends Router
 	private final EarthDB earthDB;
 	private final BuildplateInstancesManager buildplateInstancesManager;
 
-	public BuildplatesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	public BuildplatesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull TappablesManager tappablesManager, @NotNull Catalog catalog)
 	{
 		BuildplateInstancesManager buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);
 
@@ -317,6 +319,23 @@ public class BuildplatesRouter extends Router
 			return this.getNewSharedBuildplateInstanceResponse(playerId, sharedBuildplateId, sharedBuildplateInstanceRequest.fullSize ? BuildplateInstancesManager.InstanceType.SHARED_PLAY : BuildplateInstancesManager.InstanceType.SHARED_BUILD);
 		});
 
+		this.addHandler(new Route.Builder(Request.Method.POST, "/multiplayer/encounters/$encounterId/instances").build(), request ->
+		{
+			// TODO: coordinates etc.
+
+			String playerId = request.getContextData("playerId");
+			String encounterId = request.getParameter("encounterId");
+
+			record EncounterInstanceRequest(
+					@NotNull String tileId
+			)
+			{
+			}
+			EncounterInstanceRequest encounterInstanceRequest = request.getBodyAsJson(EncounterInstanceRequest.class);
+
+			return this.getNewEncounterBuildplateInstanceResponse(encounterId, encounterInstanceRequest.tileId, tappablesManager);
+		});
+
 		// TODO: should we restrict this to matching player ID?
 		this.addHandler(new Route.Builder(Request.Method.GET, "/multiplayer/partitions/$partitionId/instances/$instanceId").build(), request ->
 		{
@@ -386,7 +405,7 @@ public class BuildplatesRouter extends Router
 			return Response.notFound();
 		}
 
-		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(playerId, buildplateId, type, buildplate.night);
+		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(playerId, null, buildplateId, type, 0, buildplate.night);
 		if (instanceId == null)
 		{
 			return Response.serverError();
@@ -426,7 +445,36 @@ public class BuildplatesRouter extends Router
 			return Response.notFound();
 		}
 
-		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(playerId, sharedBuildplateId, type, sharedBuildplate.night);
+		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(playerId, null, sharedBuildplateId, type, 0, sharedBuildplate.night);
+		if (instanceId == null)
+		{
+			return Response.serverError();
+		}
+
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return Response.serverError();
+		}
+
+		BuildplateInstance buildplateInstance = this.instanceInfoToApiResponse(instanceInfo);
+		if (buildplateInstance == null)
+		{
+			return Response.serverError();
+		}
+
+		return Response.okFromJson(new EarthApiResponse<>(buildplateInstance), EarthApiResponse.class);
+	}
+
+	private Response getNewEncounterBuildplateInstanceResponse(@NotNull String encounterId, @NotNull String tileId, @NotNull TappablesManager tappablesManager) throws ServerErrorException
+	{
+		TappablesManager.Encounter encounter = tappablesManager.getEncounterWithId(encounterId, tileId);
+		if (encounter == null)
+		{
+			return Response.notFound();
+		}
+
+		String instanceId = this.buildplateInstancesManager.requestBuildplateInstance(null, encounterId, encounter.encounterBuildplateId(), BuildplateInstancesManager.InstanceType.ENCOUNTER, encounter.spawnTime() + encounter.validFor(), false);
 		if (instanceId == null)
 		{
 			return Response.serverError();
@@ -450,89 +498,128 @@ public class BuildplatesRouter extends Router
 	@Nullable
 	private BuildplateInstance instanceInfoToApiResponse(@NotNull BuildplateInstancesManager.InstanceInfo instanceInfo) throws ServerErrorException
 	{
+		enum Source
+		{
+			PLAYER,
+			SHARED,
+			ENCOUNTER
+		}
 		boolean fullsize;
 		BuildplateInstance.GameplayMetadata.GameplayMode gameplayMode;
-		boolean shared;
+		Source source;
 		switch (instanceInfo.type())
 		{
 			case BUILD ->
 			{
 				fullsize = false;
 				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE;
-				shared = false;
+				source = Source.PLAYER;
 			}
 			case PLAY ->
 			{
 				fullsize = true;
 				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE_PLAY;
-				shared = false;
+				source = Source.PLAYER;
 			}
 			case SHARED_BUILD ->
 			{
 				fullsize = false;
 				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.SHARED_BUILDPLATE_PLAY;
-				shared = true;
+				source = Source.SHARED;
 			}
 			case SHARED_PLAY ->
 			{
 				fullsize = true;
 				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.SHARED_BUILDPLATE_PLAY;
-				shared = true;
+				source = Source.SHARED;
+			}
+			case ENCOUNTER ->
+			{
+				fullsize = true;
+				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.ENCOUNTER;
+				source = Source.ENCOUNTER;
 			}
 			default ->
 			{
-				fullsize = false;
-				gameplayMode = BuildplateInstance.GameplayMetadata.GameplayMode.BUILDPLATE;
-				shared = false;
+				throw new AssertionError();
 			}
 		}
 
 		int size;
 		int offset;
 		int scale;
-		if (!shared)
+		switch (source)
 		{
-			Buildplates.Buildplate buildplate;
-			try
+			case PLAYER ->
 			{
-				EarthDB.Results results = new EarthDB.Query(false)
-						.get("buildplates", instanceInfo.playerId(), Buildplates.class)
-						.execute(this.earthDB);
-				buildplate = ((Buildplates) results.get("buildplates").value()).getBuildplate(instanceInfo.buildplateId());
+				Buildplates.Buildplate buildplate;
+				try
+				{
+					EarthDB.Results results = new EarthDB.Query(false)
+							.get("buildplates", instanceInfo.playerId(), Buildplates.class)
+							.execute(this.earthDB);
+					buildplate = ((Buildplates) results.get("buildplates").value()).getBuildplate(instanceInfo.buildplateId());
+				}
+				catch (DatabaseException exception)
+				{
+					throw new ServerErrorException(exception);
+				}
+				if (buildplate == null)
+				{
+					return null;
+				}
+				size = buildplate.size;
+				offset = buildplate.offset;
+				scale = buildplate.scale;
 			}
-			catch (DatabaseException exception)
+			case SHARED ->
 			{
-				throw new ServerErrorException(exception);
+				SharedBuildplates.SharedBuildplate sharedBuildplate;
+				try
+				{
+					EarthDB.Results results = new EarthDB.Query(false)
+							.get("sharedBuildplates", "", SharedBuildplates.class)
+							.execute(this.earthDB);
+					sharedBuildplate = ((SharedBuildplates) results.get("sharedBuildplates").value()).getSharedBuildplate(instanceInfo.buildplateId());
+				}
+				catch (DatabaseException exception)
+				{
+					throw new ServerErrorException(exception);
+				}
+				if (sharedBuildplate == null)
+				{
+					return null;
+				}
+				size = sharedBuildplate.size;
+				offset = sharedBuildplate.offset;
+				scale = sharedBuildplate.scale;
 			}
-			if (buildplate == null)
+			case ENCOUNTER ->
 			{
-				return null;
+				EncounterBuildplates.EncounterBuildplate encounterBuildplate;
+				try
+				{
+					EarthDB.Results results = new EarthDB.Query(false)
+							.get("encounterBuildplates", "", EncounterBuildplates.class)
+							.execute(this.earthDB);
+					encounterBuildplate = ((EncounterBuildplates) results.get("encounterBuildplates").value()).getEncounterBuildplate(instanceInfo.buildplateId());
+				}
+				catch (DatabaseException exception)
+				{
+					throw new ServerErrorException(exception);
+				}
+				if (encounterBuildplate == null)
+				{
+					return null;
+				}
+				size = encounterBuildplate.size;
+				offset = encounterBuildplate.offset;
+				scale = encounterBuildplate.scale;
 			}
-			size = buildplate.size;
-			offset = buildplate.offset;
-			scale = buildplate.scale;
-		}
-		else
-		{
-			SharedBuildplates.SharedBuildplate sharedBuildplate;
-			try
+			default ->
 			{
-				EarthDB.Results results = new EarthDB.Query(false)
-						.get("sharedBuildplates", "", SharedBuildplates.class)
-						.execute(this.earthDB);
-				sharedBuildplate = ((SharedBuildplates) results.get("sharedBuildplates").value()).getSharedBuildplate(instanceInfo.buildplateId());
+				throw new AssertionError();
 			}
-			catch (DatabaseException exception)
-			{
-				throw new ServerErrorException(exception);
-			}
-			if (sharedBuildplate == null)
-			{
-				return null;
-			}
-			size = sharedBuildplate.size;
-			offset = sharedBuildplate.offset;
-			scale = sharedBuildplate.scale;
 		}
 
 		return new BuildplateInstance(

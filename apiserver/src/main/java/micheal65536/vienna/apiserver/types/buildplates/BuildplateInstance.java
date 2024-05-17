@@ -38,7 +38,7 @@ public record BuildplateInstance(
 	public record GameplayMetadata(
 			@NotNull String worldId,
 			@NotNull String templateId,
-			@NotNull String spawningPlayerId,
+			@Nullable String spawningPlayerId,
 			@NotNull String spawningClientBuildNumber,
 			@NotNull String playerJoinCode,
 			@NotNull Dimension dimension,
