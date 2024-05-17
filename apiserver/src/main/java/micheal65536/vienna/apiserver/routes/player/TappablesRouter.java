@@ -11,6 +11,7 @@ import micheal65536.vienna.apiserver.types.common.Coordinate;
 import micheal65536.vienna.apiserver.types.common.Rarity;
 import micheal65536.vienna.apiserver.types.common.Token;
 import micheal65536.vienna.apiserver.types.tappables.ActiveLocation;
+import micheal65536.vienna.apiserver.types.tappables.EncounterState;
 import micheal65536.vienna.apiserver.utils.ActivityLogUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
@@ -25,7 +26,9 @@ import micheal65536.vienna.eventbus.client.EventBusClient;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 public class TappablesRouter extends Router
 {
@@ -40,6 +43,7 @@ public class TappablesRouter extends Router
 			tappablesManager.notifyTileActive(playerId, lat, lon);
 
 			TappablesManager.Tappable[] tappables = tappablesManager.getTappablesAround(lat, lon, 5.0f);    // TODO: radius
+			TappablesManager.Encounter[] encounters = tappablesManager.getEncountersAround(lat, lon, 5.0f);    // TODO: radius
 
 			try
 			{
@@ -48,7 +52,7 @@ public class TappablesRouter extends Router
 						.execute(earthDB);
 				RedeemedTappables redeemedTappables = (RedeemedTappables) results.get("redeemedTappables").value();
 
-				ActiveLocation[] activeLocations = Arrays.stream(tappables)
+				Stream<ActiveLocation> activeLocationTappables = Arrays.stream(tappables)
 						.filter(tappable -> tappable.spawnTime() + tappable.validFor() > request.timestamp && !redeemedTappables.isRedeemed(tappable.id()))
 						.map(tappable -> new ActiveLocation(
 								tappable.id(),
@@ -61,8 +65,32 @@ public class TappablesRouter extends Router
 								new ActiveLocation.Metadata(UUID.randomUUID().toString(), Rarity.valueOf(tappable.rarity().name())),
 								new ActiveLocation.TappableMetadata(Rarity.valueOf(tappable.rarity().name())),
 								null
-						))
-						.toArray(ActiveLocation[]::new);
+						));
+
+				Stream<ActiveLocation> activeLocationEncounters = Arrays.stream(encounters)
+						.filter(encounter -> encounter.spawnTime() + encounter.validFor() > request.timestamp)
+						.map(encounter -> new ActiveLocation(
+								encounter.id(),
+								TappablesManager.locationToTileId(encounter.lat(), encounter.lon()),
+								new Coordinate(encounter.lat(), encounter.lon()),
+								TimeFormatter.formatTime(encounter.spawnTime()),
+								TimeFormatter.formatTime(encounter.spawnTime() + encounter.validFor()),
+								ActiveLocation.Type.ENCOUNTER,
+								encounter.icon(),
+								new ActiveLocation.Metadata(UUID.randomUUID().toString(), Rarity.valueOf(encounter.rarity().name())),
+								null,
+								new ActiveLocation.EncounterMetadata(
+										ActiveLocation.EncounterMetadata.EncounterType.SHORT_4X4_PEACEFUL,    // TODO
+										//UUID.randomUUID().toString(),    // TODO: what is this field for and does it matter what we put here?
+										encounter.id(),
+										encounter.encounterBuildplateId(),
+										ActiveLocation.EncounterMetadata.AnchorState.OFF,
+										"",
+										""
+								)
+						));
+
+				ActiveLocation[] activeLocations = Stream.concat(activeLocationTappables, activeLocationEncounters).toArray(ActiveLocation[]::new);
 
 				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("activeLocations", activeLocations).put("killSwitchedTileIds", new int[0]).getMap()), EarthApiResponse.class);
 			}
@@ -149,6 +177,25 @@ public class TappablesRouter extends Router
 			{
 				throw new ServerErrorException(exception);
 			}
+		});
+
+		this.addHandler(new Route.Builder(Request.Method.POST, "/multiplayer/encounters/state").build(), request ->
+		{
+			HashMap<String, Object> requestedIds = request.getBodyAsJson(HashMap.class);
+			for (Map.Entry<String, Object> entry : requestedIds.entrySet())
+			{
+				if (!(entry.getValue() instanceof String))
+				{
+					return Response.badRequest();
+				}
+			}
+
+			// TODO
+
+			HashMap<String, EncounterState> encounterStates = new HashMap<>();
+			requestedIds.forEach((encounterId, tileId) -> encounterStates.put(encounterId, new EncounterState(EncounterState.ActiveEncounterState.PRISTINE)));
+
+			return Response.okFromJson(new EarthApiResponse<>(encounterStates), EarthApiResponse.class);
 		});
 	}
 }
