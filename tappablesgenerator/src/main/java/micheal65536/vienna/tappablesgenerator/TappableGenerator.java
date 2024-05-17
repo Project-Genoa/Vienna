@@ -13,7 +13,7 @@ import java.util.LinkedList;
 import java.util.Random;
 import java.util.UUID;
 
-public class Generator
+public class TappableGenerator
 {
 	// TODO: make these configurable
 	private static final int MIN_COUNT = 1;
@@ -61,7 +61,7 @@ public class Generator
 
 	private final Random random;
 
-	public Generator()
+	public TappableGenerator()
 	{
 		try
 		{

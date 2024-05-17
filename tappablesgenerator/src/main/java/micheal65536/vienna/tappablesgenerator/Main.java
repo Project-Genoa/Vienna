@@ -54,7 +54,8 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to event bus");
 
-		Generator generator = new Generator();
+		TappableGenerator tappableGenerator = new TappableGenerator();
+		EncounterGenerator encounterGenerator = new EncounterGenerator();
 		Spawner[] spawner = new Spawner[1];
 		ActiveTiles activeTiles = new ActiveTiles(eventBusClient, new ActiveTiles.ActiveTileListener()
 		{
@@ -70,7 +71,7 @@ public class Main
 				// empty
 			}
 		});
-		spawner[0] = new Spawner(eventBusClient, activeTiles, generator);
+		spawner[0] = new Spawner(eventBusClient, activeTiles, tappableGenerator, encounterGenerator);
 		spawner[0].run();
 	}
 }

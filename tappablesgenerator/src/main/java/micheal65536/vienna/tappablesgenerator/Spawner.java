@@ -14,7 +14,8 @@ public class Spawner
 	private static final long SPAWN_INTERVAL = 15 * 1000;
 
 	private final ActiveTiles activeTiles;
-	private final Generator generator;
+	private final TappableGenerator tappableGenerator;
+	private final EncounterGenerator encounterGenerator;
 	private final Publisher publisher;
 
 	private final int maxTappableLifetimeIntervals;
@@ -23,13 +24,14 @@ public class Spawner
 	private int spawnCycleIndex;
 	private final HashMap<Integer, Integer> lastSpawnCycleForTile = new HashMap<>();
 
-	public Spawner(@NotNull EventBusClient eventBusClient, @NotNull ActiveTiles activeTiles, @NotNull Generator generator)
+	public Spawner(@NotNull EventBusClient eventBusClient, @NotNull ActiveTiles activeTiles, @NotNull TappableGenerator tappableGenerator, @NotNull EncounterGenerator encounterGenerator)
 	{
 		this.activeTiles = activeTiles;
-		this.generator = generator;
+		this.tappableGenerator = tappableGenerator;
+		this.encounterGenerator = encounterGenerator;
 		this.publisher = eventBusClient.addPublisher();
 
-		this.maxTappableLifetimeIntervals = (int) (this.generator.getMaxTappableLifetime() / SPAWN_INTERVAL + 1);
+		this.maxTappableLifetimeIntervals = (int) (Math.max(this.tappableGenerator.getMaxTappableLifetime(), this.encounterGenerator.getMaxEncounterLifetime()) / SPAWN_INTERVAL + 1);
 
 		this.spawnCycleTime = System.currentTimeMillis();
 		this.spawnCycleIndex = this.maxTappableLifetimeIntervals;
@@ -102,11 +104,18 @@ public class Spawner
 
 	private void spawnTappablesForTile(int tileX, int tileY, long currentTime)
 	{
-		for (Tappable tappable : this.generator.generateTappables(tileX, tileY, currentTime))
+		for (Tappable tappable : this.tappableGenerator.generateTappables(tileX, tileY, currentTime))
 		{
 			if (!this.publisher.publish("tappables", "tappableSpawn", new Gson().toJson(tappable)).join())
 			{
 				LogManager.getLogger().error("Event bus server rejected tappable spawn event");
+			}
+		}
+		for (Encounter encounter : this.encounterGenerator.generateEncounters(tileX, tileY, currentTime))
+		{
+			if (!this.publisher.publish("tappables", "encounterSpawn", new Gson().toJson(encounter)).join())
+			{
+				LogManager.getLogger().error("Event bus server rejected encounter spawn event");
 			}
 		}
 	}
