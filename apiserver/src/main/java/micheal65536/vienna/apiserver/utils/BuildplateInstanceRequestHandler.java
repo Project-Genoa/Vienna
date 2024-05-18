@@ -42,22 +42,22 @@ import java.util.stream.Stream;
 
 public final class BuildplateInstanceRequestHandler
 {
-	public static void start(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	public static void start(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull Catalog catalog)
 	{
-		new BuildplateInstanceRequestHandler(earthDB, eventBusClient, objectStoreClient, catalog);
+		new BuildplateInstanceRequestHandler(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog);
 	}
 
 	private final EarthDB earthDB;
 	private final ObjectStoreClient objectStoreClient;
-	private final Catalog catalog;
 	private final BuildplateInstancesManager buildplateInstancesManager;
+	private final Catalog catalog;
 
-	private BuildplateInstanceRequestHandler(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	private BuildplateInstanceRequestHandler(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull Catalog catalog)
 	{
 		this.earthDB = earthDB;
 		this.objectStoreClient = objectStoreClient;
+		this.buildplateInstancesManager = buildplateInstancesManager;
 		this.catalog = catalog;
-		this.buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);    // TODO: would be nicer to use the same instance as BuildplatesRouter
 
 		RequestHandler requestHandler = eventBusClient.addRequestHandler("buildplates", new RequestHandler.Handler()
 		{

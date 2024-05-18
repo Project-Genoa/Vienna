@@ -14,6 +14,7 @@ import micheal65536.vienna.apiserver.routes.player.WorkshopRouter;
 import micheal65536.vienna.apiserver.routing.Request;
 import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
+import micheal65536.vienna.apiserver.utils.BuildplateInstancesManager;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.apiserver.utils.TappablesManager;
@@ -25,7 +26,7 @@ import java.util.HashMap;
 
 public class PlayerRouter extends Router
 {
-	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull Catalog catalog)
 	{
 		// TODO
 		this.addHandler(new Route.Builder(Request.Method.GET, "/boosts").build(), request ->
@@ -40,7 +41,7 @@ public class PlayerRouter extends Router
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
 		this.addSubRouter("/*", 0, new JournalRouter(earthDB));
-		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, eventBusClient, objectStoreClient, tappablesManager, catalog));
+		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, objectStoreClient, buildplateInstancesManager, tappablesManager, catalog));
 		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, tappablesManager, catalog));
 		this.addSubRouter("/*", 0, new ChallengesRouter(earthDB));
 	}

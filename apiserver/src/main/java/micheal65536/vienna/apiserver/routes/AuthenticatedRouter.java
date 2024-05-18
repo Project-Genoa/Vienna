@@ -7,13 +7,14 @@ import micheal65536.vienna.apiserver.routing.Filter;
 import micheal65536.vienna.apiserver.routing.Request;
 import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
+import micheal65536.vienna.apiserver.utils.BuildplateInstancesManager;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
 public class AuthenticatedRouter extends Router
 {
-	public AuthenticatedRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	public AuthenticatedRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull Catalog catalog)
 	{
 		Filter authFilter = request ->
 		{
@@ -45,7 +46,7 @@ public class AuthenticatedRouter extends Router
 				authFilter
 		);
 
-		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, eventBusClient, objectStoreClient, catalog));
+		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog));
 		this.addSubRouter("/*", 0, new CatalogRouter(catalog));
 		this.addSubRouter("/*", 0, new EnvironmentSettingsRouter());
 	}

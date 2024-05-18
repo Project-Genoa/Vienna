@@ -24,6 +24,7 @@ import micheal65536.vienna.apiserver.routes.SigninRouter;
 import micheal65536.vienna.apiserver.routing.Application;
 import micheal65536.vienna.apiserver.routing.Router;
 import micheal65536.vienna.apiserver.utils.BuildplateInstanceRequestHandler;
+import micheal65536.vienna.apiserver.utils.BuildplateInstancesManager;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
@@ -143,12 +144,14 @@ public class Main
 		Router router = new Router();
 		application.router.addSubRouter("/*", 0, router);
 
+		BuildplateInstancesManager buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);
+
 		router.addSubRouter("/auth/api/v1.1/*", 3, new SigninRouter());    // for some reason MCE uses the base path from the previous session when switching users without restarting the app
-		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, objectStoreClient, catalog));
+		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog));
 		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
 		router.addSubRouter("/api/v1.1/*", 2, new ResourcePacksRouter());
 
-		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, catalog);
+		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog);
 
 		return application;
 	}

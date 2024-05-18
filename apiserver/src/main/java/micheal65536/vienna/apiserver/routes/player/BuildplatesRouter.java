@@ -33,7 +33,6 @@ import micheal65536.vienna.db.model.global.SharedBuildplates;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
-import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 
 import java.nio.charset.StandardCharsets;
@@ -46,10 +45,8 @@ public class BuildplatesRouter extends Router
 	private final EarthDB earthDB;
 	private final BuildplateInstancesManager buildplateInstancesManager;
 
-	public BuildplatesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull TappablesManager tappablesManager, @NotNull Catalog catalog)
+	public BuildplatesRouter(@NotNull EarthDB earthDB, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull TappablesManager tappablesManager, @NotNull Catalog catalog)
 	{
-		BuildplateInstancesManager buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);
-
 		this.earthDB = earthDB;
 		this.buildplateInstancesManager = buildplateInstancesManager;
 
