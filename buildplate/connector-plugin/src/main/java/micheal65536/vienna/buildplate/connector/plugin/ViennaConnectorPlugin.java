@@ -67,7 +67,9 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	@Override
 	public void shutdown() throws ConnectorPluginException
 	{
+		this.requestSender.flush();
 		this.requestSender.close();
+		this.publisher.flush();
 		this.publisher.close();
 		this.eventBusClient.close();
 	}

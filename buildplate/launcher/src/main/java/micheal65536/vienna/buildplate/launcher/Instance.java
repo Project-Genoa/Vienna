@@ -318,6 +318,11 @@ public class Instance
 			{
 				this.requestHandler.close();
 			}
+			if (this.requestSender != null)
+			{
+				this.requestSender.flush();
+				this.requestSender.close();
+			}
 
 			this.cleanupBaseDir();
 

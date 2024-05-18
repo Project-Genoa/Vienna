@@ -70,6 +70,18 @@ public final class Publisher
 		return completableFuture;
 	}
 
+	public void flush()
+	{
+		this.lock.lock();
+		CompletableFuture<Boolean> completableFuture = this.queuedEventResults.isEmpty() ? this.currentPendingEventResult : this.queuedEventResults.getLast();
+		this.lock.unlock();
+
+		if (completableFuture != null)
+		{
+			completableFuture.join();
+		}
+	}
+
 	boolean handleMessage(@NotNull String message)
 	{
 		if (message.equals("ACK"))

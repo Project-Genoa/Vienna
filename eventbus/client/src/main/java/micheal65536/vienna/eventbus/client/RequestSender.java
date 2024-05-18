@@ -70,6 +70,18 @@ public final class RequestSender
 		return completableFuture;
 	}
 
+	public void flush()
+	{
+		this.lock.lock();
+		CompletableFuture<String> completableFuture = this.queuedRequestResponses.isEmpty() ? this.currentPendingResponse : this.queuedRequestResponses.getLast();
+		this.lock.unlock();
+
+		if (completableFuture != null)
+		{
+			completableFuture.join();
+		}
+	}
+
 	boolean handleMessage(@NotNull String message)
 	{
 		if (message.equals("ERR"))
