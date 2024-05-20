@@ -3,11 +3,10 @@ package micheal65536.vienna.apiserver.utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.apiserver.Catalog;
-import micheal65536.vienna.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.player.workshop.InputItem;
 import micheal65536.vienna.db.model.player.workshop.SmeltingSlot;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 
@@ -16,7 +15,7 @@ public final class SmeltingCalculator
 	@NotNull
 	public static State calculateState(long currentTime, @NotNull SmeltingSlot.ActiveJob activeJob, @Nullable SmeltingSlot.Burning burning, @NotNull Catalog catalog)
 	{
-		RecipesCatalog.SmeltingRecipe recipe = Arrays.stream(catalog.recipesCatalog.smelting()).filter(smeltingRecipe -> smeltingRecipe.id().equals(activeJob.recipeId())).findFirst().orElseThrow();
+		Catalog.RecipesCatalog.SmeltingRecipe recipe = catalog.recipesCatalog.getSmeltingRecipe(activeJob.recipeId());
 
 		int totalHeatRequired = recipe.heatRequired() * activeJob.totalRounds();
 		long totalCompletionTime = activeJob.startTime() + calculateDurationForHeat(totalHeatRequired, burning, activeJob.addedFuel());
@@ -168,7 +167,7 @@ public final class SmeltingCalculator
 				availableRounds,
 				activeJob.totalRounds(),
 				input,
-				new State.OutputItem(recipe.output().itemId(), recipe.output().quantity()),
+				new State.OutputItem(recipe.output(), 1),
 				nextCompletionTime,
 				totalCompletionTime,
 				remainingAddedFuel,

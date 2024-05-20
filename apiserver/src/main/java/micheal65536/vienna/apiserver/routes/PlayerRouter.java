@@ -2,7 +2,6 @@ package micheal65536.vienna.apiserver.routes;
 
 import org.jetbrains.annotations.NotNull;
 
-import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.routes.player.BuildplatesRouter;
 import micheal65536.vienna.apiserver.routes.player.ChallengesRouter;
 import micheal65536.vienna.apiserver.routes.player.InventoryRouter;
@@ -21,6 +20,7 @@ import micheal65536.vienna.apiserver.utils.TappablesManager;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.HashMap;
 

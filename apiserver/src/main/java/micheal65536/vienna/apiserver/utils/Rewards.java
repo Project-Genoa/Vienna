@@ -3,8 +3,6 @@ package micheal65536.vienna.apiserver.utils;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.apiserver.Catalog;
-import micheal65536.vienna.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.player.ActivityLog;
@@ -12,6 +10,7 @@ import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
 import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -132,8 +131,8 @@ public final class Rewards
 					int quantity = entry.getValue();
 					if (quantity > 0)
 					{
-						ItemsCatalog.Item item = Arrays.stream(catalog.itemsCatalog.items()).filter(item1 -> item1.id().equals(id)).findFirst().orElseThrow();
-						if (item.stacks())
+						Catalog.ItemsCatalog.Item item = catalog.itemsCatalog.getItem(id);
+						if (item.stackable())
 						{
 							inventory.addItems(id, quantity);
 						}

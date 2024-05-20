@@ -2,11 +2,10 @@ package micheal65536.vienna.apiserver.utils;
 
 import org.jetbrains.annotations.NotNull;
 
-import micheal65536.vienna.apiserver.Catalog;
-import micheal65536.vienna.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.player.workshop.CraftingSlot;
 import micheal65536.vienna.db.model.player.workshop.InputItem;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 
@@ -15,9 +14,9 @@ public final class CraftingCalculator
 	@NotNull
 	public static State calculateState(long currentTime, @NotNull CraftingSlot.ActiveJob activeJob, @NotNull Catalog catalog)
 	{
-		RecipesCatalog.CraftingRecipe recipe = Arrays.stream(catalog.recipesCatalog.crafting()).filter(craftingRecipe -> craftingRecipe.id().equals(activeJob.recipeId())).findFirst().orElseThrow();
+		Catalog.RecipesCatalog.CraftingRecipe recipe = catalog.recipesCatalog.getCraftingRecipe(activeJob.recipeId());
 
-		long roundDuration = TimeFormatter.parseDuration(recipe.duration());
+		long roundDuration = recipe.duration() * 1000;
 		int completedRounds = activeJob.finishedEarly() ? activeJob.totalRounds() : Math.min((int) ((currentTime - activeJob.startTime()) / roundDuration), activeJob.totalRounds());
 		int availableRounds = completedRounds - activeJob.collectedRounds();
 
@@ -28,7 +27,7 @@ public final class CraftingCalculator
 		}
 		for (int index = 0; index < recipe.ingredients().length; index++)
 		{
-			int usedCount = recipe.ingredients()[index].quantity() * completedRounds;
+			int usedCount = recipe.ingredients()[index].count() * completedRounds;
 			InputItem inputItem = activeJob.input()[index];
 			if (inputItem.instances().length > 0)
 			{
@@ -49,7 +48,7 @@ public final class CraftingCalculator
 				availableRounds,
 				activeJob.totalRounds(),
 				input,
-				new State.OutputItem(recipe.output().itemId(), recipe.output().quantity()),
+				new State.OutputItem(recipe.output().itemId(), recipe.output().count()),
 				activeJob.startTime() + roundDuration * (completedRounds + 1),
 				activeJob.startTime() + roundDuration * activeJob.totalRounds(),
 				completedRounds == activeJob.totalRounds()

@@ -6,8 +6,6 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.apiserver.Catalog;
-import micheal65536.vienna.apiserver.types.catalog.ItemsCatalog;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
@@ -32,6 +30,7 @@ import micheal65536.vienna.db.model.player.Tokens;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.RequestHandler;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
@@ -603,19 +602,19 @@ public final class BuildplateInstanceRequestHandler
 						LinkedList<String> unlockedJournalItems = new LinkedList<>();
 						for (InventoryResponse.Item item : backpackContents.items())
 						{
-							ItemsCatalog.Item catalogItem = Arrays.stream(this.catalog.itemsCatalog.items()).filter(catalogItem1 -> catalogItem1.id().equals(item.id())).findFirst().orElse(null);
+							Catalog.ItemsCatalog.Item catalogItem = this.catalog.itemsCatalog.getItem(item.id());
 							if (catalogItem == null)
 							{
 								LogManager.getLogger().error("Backpack contents contained item that is not in item catalog");
 								continue;
 							}
-							if (!catalogItem.stacks() && item.instanceId() == null)
+							if (!catalogItem.stackable() && item.instanceId() == null)
 							{
 								LogManager.getLogger().error("Backpack contents contained non-stackable item without instance ID");
 								continue;
 							}
 
-							if (catalogItem.stacks())
+							if (catalogItem.stackable())
 							{
 								inventory.addItems(item.id(), item.count());
 							}
@@ -685,12 +684,12 @@ public final class BuildplateInstanceRequestHandler
 
 	private boolean handleInventoryAdd(@NotNull String instanceId, @NotNull InventoryAddItemMessage inventoryAddItemMessage, long timestamp) throws DatabaseException
 	{
-		ItemsCatalog.Item catalogItem = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item -> item.id().equals(inventoryAddItemMessage.itemId())).findFirst().orElse(null);
+		Catalog.ItemsCatalog.Item catalogItem = this.catalog.itemsCatalog.getItem(inventoryAddItemMessage.itemId());
 		if (catalogItem == null)
 		{
 			return false;
 		}
-		if (!catalogItem.stacks() && inventoryAddItemMessage.instanceId() == null)
+		if (!catalogItem.stackable() && inventoryAddItemMessage.instanceId() == null)
 		{
 			return false;
 		}
@@ -703,7 +702,7 @@ public final class BuildplateInstanceRequestHandler
 					Inventory inventory = (Inventory) results1.get("inventory").value();
 					Journal journal = (Journal) results1.get("journal").value();
 
-					if (catalogItem.stacks())
+					if (catalogItem.stackable())
 					{
 						inventory.addItems(inventoryAddItemMessage.itemId(), inventoryAddItemMessage.count());
 					}

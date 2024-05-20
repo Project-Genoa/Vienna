@@ -2,11 +2,11 @@ package micheal65536.vienna.apiserver.utils;
 
 import org.jetbrains.annotations.NotNull;
 
-import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
+import micheal65536.vienna.staticdata.Catalog;
 
 public final class LevelUtils
 {

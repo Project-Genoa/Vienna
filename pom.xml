@@ -15,6 +15,7 @@
         <module>buildplate/connector-model</module>
         <module>tappablesgenerator</module>
         <module>db</module>
+        <module>staticdata</module>
         <module>eventbus/server</module>
         <module>eventbus/client</module>
         <module>objectstore/server</module>

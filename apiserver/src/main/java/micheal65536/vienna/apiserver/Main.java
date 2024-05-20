@@ -31,6 +31,8 @@ import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.EventBusClientException;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
 import micheal65536.vienna.objectstore.client.ObjectStoreClientException;
+import micheal65536.vienna.staticdata.StaticData;
+import micheal65536.vienna.staticdata.StaticDataException;
 
 import java.io.File;
 import java.io.IOException;
@@ -57,6 +59,12 @@ public class Main
 				.desc("Database path, defaults to ./earth.db")
 				.build());
 		options.addOption(Option.builder()
+				.option("staticData")
+				.hasArg()
+				.argName("dir")
+				.desc("Static data path, defaults to ./data")
+				.build());
+		options.addOption(Option.builder()
 				.option("eventbus")
 				.hasArg()
 				.argName("eventbus")
@@ -71,6 +79,7 @@ public class Main
 		CommandLine commandLine;
 		int httpPort;
 		String dbConnectionString;
+		String staticDataPath;
 		String eventBusConnectionString;
 		String objectStoreConnectionString;
 		try
@@ -78,6 +87,7 @@ public class Main
 			commandLine = new DefaultParser().parse(options, args);
 			httpPort = commandLine.hasOption("port") ? (int) (long) commandLine.getParsedOptionValue("port") : 8080;
 			dbConnectionString = commandLine.hasOption("db") ? commandLine.getOptionValue("db") : "./earth.db";
+			staticDataPath = commandLine.hasOption("staticData") ? commandLine.getOptionValue("staticData") : "./data";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
 			objectStoreConnectionString = commandLine.hasOption("objectstore") ? commandLine.getOptionValue("objectstore") : "localhost:5396";
 		}
@@ -88,7 +98,19 @@ public class Main
 			return;
 		}
 
-		Catalog catalog = new Catalog();
+		LogManager.getLogger().info("Loading static data");
+		StaticData staticData;
+		try
+		{
+			staticData = new StaticData(new File(staticDataPath));
+		}
+		catch (StaticDataException staticDataException)
+		{
+			LogManager.getLogger().fatal("Failed to load static data", staticDataException);
+			System.exit(1);
+			return;
+		}
+		LogManager.getLogger().info("Loaded static data");
 
 		LogManager.getLogger().info("Connecting to database");
 		EarthDB earthDB;
@@ -132,13 +154,13 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to object storage");
 
-		Application application = buildApplication(earthDB, eventBusClient, objectStoreClient, catalog);
+		Application application = buildApplication(earthDB, staticData, eventBusClient, objectStoreClient);
 
 		startServer(httpPort, application);
 	}
 
 	@NotNull
-	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull Catalog catalog)
+	private static Application buildApplication(@NotNull EarthDB earthDB, @NotNull StaticData staticData, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient)
 	{
 		Application application = new Application();
 		Router router = new Router();
@@ -147,11 +169,11 @@ public class Main
 		BuildplateInstancesManager buildplateInstancesManager = new BuildplateInstancesManager(eventBusClient);
 
 		router.addSubRouter("/auth/api/v1.1/*", 3, new SigninRouter());    // for some reason MCE uses the base path from the previous session when switching users without restarting the app
-		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog));
+		router.addSubRouter("/auth/api/v1.1/*", 3, new AuthenticatedRouter(earthDB, staticData, eventBusClient, objectStoreClient, buildplateInstancesManager));
 		router.addSubRouter("/api/v1.1/*", 2, new SigninRouter());
 		router.addSubRouter("/api/v1.1/*", 2, new ResourcePacksRouter());
 
-		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, catalog);
+		BuildplateInstanceRequestHandler.start(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, staticData.catalog);
 
 		return application;
 	}

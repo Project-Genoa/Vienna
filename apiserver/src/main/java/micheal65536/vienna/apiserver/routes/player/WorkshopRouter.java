@@ -3,13 +3,10 @@ package micheal65536.vienna.apiserver.routes.player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.routing.Request;
 import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
 import micheal65536.vienna.apiserver.routing.ServerErrorException;
-import micheal65536.vienna.apiserver.types.catalog.ItemsCatalog;
-import micheal65536.vienna.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.vienna.apiserver.types.common.BurnRate;
 import micheal65536.vienna.apiserver.types.common.ExpectedPurchasePrice;
 import micheal65536.vienna.apiserver.types.profile.SplitRubies;
@@ -37,6 +34,7 @@ import micheal65536.vienna.db.model.player.workshop.CraftingSlots;
 import micheal65536.vienna.db.model.player.workshop.InputItem;
 import micheal65536.vienna.db.model.player.workshop.SmeltingSlot;
 import micheal65536.vienna.db.model.player.workshop.SmeltingSlots;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -163,7 +161,7 @@ public class WorkshopRouter extends Router
 			{
 				return Response.badRequest();
 			}
-			RecipesCatalog.CraftingRecipe recipe = Arrays.stream(this.catalog.recipesCatalog.crafting()).filter(craftingRecipe -> craftingRecipe.id().equals(startRequest.recipeId)).findFirst().orElse(null);
+			Catalog.RecipesCatalog.CraftingRecipe recipe = this.catalog.recipesCatalog.getCraftingRecipe(startRequest.recipeId);
 			if (recipe == null)
 			{
 				return Response.badRequest();
@@ -179,13 +177,13 @@ public class WorkshopRouter extends Router
 			}
 			for (int index = 0; index < recipe.ingredients().length; index++)
 			{
-				RecipesCatalog.CraftingRecipe.Ingredient ingredient = recipe.ingredients()[index];
+				Catalog.RecipesCatalog.CraftingRecipe.Ingredient ingredient = recipe.ingredients()[index];
 				StartRequest.Item item = startRequest.ingredients[index];
-				if (Arrays.stream(ingredient.items()).noneMatch(id -> id.equals(item.itemId)))
+				if (Arrays.stream(ingredient.possibleItemIds()).noneMatch(id -> id.equals(item.itemId)))
 				{
 					return Response.badRequest();
 				}
-				if (item.quantity != ingredient.quantity() * startRequest.multiplier)
+				if (item.quantity != ingredient.count() * startRequest.multiplier)
 				{
 					return Response.badRequest();
 				}
@@ -286,22 +284,27 @@ public class WorkshopRouter extends Router
 			{
 				return Response.badRequest();
 			}
-			RecipesCatalog.SmeltingRecipe recipe = Arrays.stream(this.catalog.recipesCatalog.smelting()).filter(smeltingRecipe -> smeltingRecipe.id().equals(startRequest.recipeId)).findFirst().orElse(null);
+			Catalog.RecipesCatalog.SmeltingRecipe recipe = this.catalog.recipesCatalog.getSmeltingRecipe(startRequest.recipeId);
+			Catalog.ItemsCatalog.Item fuelCatalogItem = startRequest.fuel != null ? this.catalog.itemsCatalog.getItem(startRequest.fuel.itemId) : null;
 			if (recipe == null)
 			{
 				return Response.badRequest();
 			}
-			if (recipe.returnItems().length > 0)
+			if (startRequest.fuel != null && (fuelCatalogItem == null || fuelCatalogItem.fuelInfo() == null))
+			{
+				return Response.badRequest();
+			}
+			if (recipe.returnItemId() != null)
 			{
 				// TODO: implement returnItems
 				throw new UnsupportedOperationException();
 			}
-			if (startRequest.fuel != null && Arrays.stream(this.catalog.itemsCatalog.items()).filter(item -> item.id().equals(startRequest.fuel.itemId)).findFirst().map(item -> item.fuelReturnItems().length > 0).orElse(false))
+			if (startRequest.fuel != null && fuelCatalogItem.fuelInfo().returnItemId() != null)
 			{
 				// TODO: implement returnItems
 				throw new UnsupportedOperationException();
 			}
-			if (!startRequest.input.itemId.equals(recipe.inputItemId()) || startRequest.input.quantity != startRequest.multiplier)
+			if (!startRequest.input.itemId.equals(recipe.input()) || startRequest.input.quantity != startRequest.multiplier)
 			{
 				return Response.badRequest();
 			}
@@ -354,16 +357,11 @@ public class WorkshopRouter extends Router
 								{
 									return query;
 								}
-								BurnRate burnRate = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item -> item.id().equals(startRequest.fuel.itemId)).findFirst().map(ItemsCatalog.Item::burnRate).orElse(null);
-								if (burnRate == null)
-								{
-									return query;
-								}
 								int requiredFuelCount = 0;
 								while (requiredFuelHeat > 0)
 								{
 									requiredFuelCount += 1;
-									requiredFuelHeat -= burnRate.heatPerSecond() * burnRate.burnTime();
+									requiredFuelHeat -= fuelCatalogItem.fuelInfo().heatPerSecond() * fuelCatalogItem.fuelInfo().burnTime();
 								}
 								if (startRequest.fuel.quantity < requiredFuelCount)
 								{
@@ -387,7 +385,7 @@ public class WorkshopRouter extends Router
 									}
 									fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, instances);
 								}
-								fuel = new SmeltingSlot.Fuel(fuelItem, burnRate.burnTime(), burnRate.heatPerSecond());
+								fuel = new SmeltingSlot.Fuel(fuelItem, fuelCatalogItem.fuelInfo().burnTime(), fuelCatalogItem.fuelInfo().heatPerSecond());
 							}
 							else
 							{
@@ -580,8 +578,8 @@ public class WorkshopRouter extends Router
 							int outputQuantity = state.availableRounds() * state.output().count();
 							if (outputQuantity > 0)
 							{
-								ItemsCatalog.Item item = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item1 -> item1.id().equals(state.output().id())).findFirst().orElseThrow();
-								if (item.stacks())
+								Catalog.ItemsCatalog.Item item = this.catalog.itemsCatalog.getItem(state.output().id());
+								if (item.stackable())
 								{
 									inventory.addItems(item.id(), outputQuantity);
 								}
@@ -651,8 +649,8 @@ public class WorkshopRouter extends Router
 							int outputQuantity = state.availableRounds() * state.output().count();
 							if (outputQuantity > 0)
 							{
-								ItemsCatalog.Item item = Arrays.stream(this.catalog.itemsCatalog.items()).filter(item1 -> item1.id().equals(state.output().id())).findFirst().orElseThrow();
-								if (item.stacks())
+								Catalog.ItemsCatalog.Item item = this.catalog.itemsCatalog.getItem(state.output().id());
+								if (item.stackable())
 								{
 									inventory.addItems(item.id(), outputQuantity);
 								}

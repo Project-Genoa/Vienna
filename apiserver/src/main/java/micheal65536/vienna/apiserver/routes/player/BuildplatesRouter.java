@@ -5,7 +5,6 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import micheal65536.vienna.apiserver.Catalog;
 import micheal65536.vienna.apiserver.routing.Request;
 import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
@@ -34,6 +33,7 @@ import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
+import micheal65536.vienna.staticdata.Catalog;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
