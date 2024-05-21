@@ -12,6 +12,10 @@ import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.EventBusClientException;
+import micheal65536.vienna.staticdata.StaticData;
+import micheal65536.vienna.staticdata.StaticDataException;
+
+import java.io.File;
 
 public class Main
 {
@@ -21,16 +25,24 @@ public class Main
 
 		Options options = new Options();
 		options.addOption(Option.builder()
+				.option("staticData")
+				.hasArg()
+				.argName("dir")
+				.desc("Static data path, defaults to ./data")
+				.build());
+		options.addOption(Option.builder()
 				.option("eventbus")
 				.hasArg()
 				.argName("eventbus")
 				.desc("Event bus address, defaults to localhost:5532")
 				.build());
 		CommandLine commandLine;
+		String staticDataPath;
 		String eventBusConnectionString;
 		try
 		{
 			commandLine = new DefaultParser().parse(options, args);
+			staticDataPath = commandLine.hasOption("staticData") ? commandLine.getOptionValue("staticData") : "./data";
 			eventBusConnectionString = commandLine.hasOption("eventbus") ? commandLine.getOptionValue("eventbus") : "localhost:5532";
 		}
 		catch (ParseException exception)
@@ -39,6 +51,20 @@ public class Main
 			System.exit(1);
 			return;
 		}
+
+		LogManager.getLogger().info("Loading static data");
+		StaticData staticData;
+		try
+		{
+			staticData = new StaticData(new File(staticDataPath));
+		}
+		catch (StaticDataException staticDataException)
+		{
+			LogManager.getLogger().fatal("Failed to load static data", staticDataException);
+			System.exit(1);
+			return;
+		}
+		LogManager.getLogger().info("Loaded static data");
 
 		LogManager.getLogger().info("Connecting to event bus");
 		EventBusClient eventBusClient;
@@ -54,8 +80,8 @@ public class Main
 		}
 		LogManager.getLogger().info("Connected to event bus");
 
-		TappableGenerator tappableGenerator = new TappableGenerator();
-		EncounterGenerator encounterGenerator = new EncounterGenerator();
+		TappableGenerator tappableGenerator = new TappableGenerator(staticData);
+		EncounterGenerator encounterGenerator = new EncounterGenerator(staticData);
 		Spawner[] spawner = new Spawner[1];
 		ActiveTiles activeTiles = new ActiveTiles(eventBusClient, new ActiveTiles.ActiveTileListener()
 		{

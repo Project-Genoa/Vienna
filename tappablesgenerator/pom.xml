@@ -63,6 +63,11 @@
 
         <dependency>
             <groupId>micheal65536.vienna</groupId>
+            <artifactId>staticdata</artifactId>
+            <version>0.0.1-SNAPSHOT</version>
+        </dependency>
+        <dependency>
+            <groupId>micheal65536.vienna</groupId>
             <artifactId>eventbus-client</artifactId>
             <version>0.0.1-SNAPSHOT</version>
         </dependency>

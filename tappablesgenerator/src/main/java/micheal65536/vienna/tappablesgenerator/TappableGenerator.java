@@ -1,13 +1,12 @@
 package micheal65536.vienna.tappablesgenerator;
 
-import com.google.gson.Gson;
 import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 
-import java.io.File;
-import java.io.FileReader;
+import micheal65536.vienna.staticdata.StaticData;
+import micheal65536.vienna.staticdata.TappablesConfig;
+
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.UUID;
@@ -22,73 +21,16 @@ public class TappableGenerator
 	private static final long MIN_DELAY = 1 * 60 * 1000;
 	private static final long MAX_DELAY = 2 * 60 * 1000;
 
-	private record TappableConfig(
-			@NotNull String icon,
-			int experiencePoints,    // TODO: how is tappable XP determined?
-			@NotNull DropSet[] dropSets,
-			@NotNull HashMap<String, ItemCount> itemCounts
-	)
-	{
-		public record DropSet(
-				@NotNull String[] items,
-				int chance
-		)
-		{
-		}
-
-		public record ItemCount(
-				int min,
-				int max
-		)
-		{
-		}
-	}
-
-	private final TappableConfig[] tappableConfigs;
+	private final StaticData staticData;
 
 	private final Random random;
 
-	public TappableGenerator()
+	public TappableGenerator(@NotNull StaticData staticData)
 	{
-		try
+		this.staticData = staticData;
+		if (this.staticData.tappablesConfig.tappables.length == 0)
 		{
-			LogManager.getLogger().info("Loading tappable generator data");
-			File dataDir = new File("data", "tappable");
-			LinkedList<TappableConfig> tappableConfigs = new LinkedList<>();
-			for (File file : dataDir.listFiles())
-			{
-				tappableConfigs.add(new Gson().fromJson(new FileReader(file), TappableConfig.class));
-			}
-			this.tappableConfigs = tappableConfigs.toArray(TappableConfig[]::new);
-		}
-		catch (Exception exception)
-		{
-			LogManager.getLogger().fatal("Failed to load tappable generator data", exception);
-			System.exit(1);
-			throw new AssertionError();
-		}
-
-		if (this.tappableConfigs.length == 0)
-		{
-			LogManager.getLogger().fatal("No tappable configs provided");
-			System.exit(1);
-			throw new AssertionError();
-		}
-		for (TappableConfig tappableConfig : this.tappableConfigs)
-		{
-			if (tappableConfig.dropSets.length == 0)
-			{
-				LogManager.getLogger().warn("Tappable config {} has no drop sets", tappableConfig.icon);
-			}
-			Arrays.stream(tappableConfig.dropSets).flatMap(dropSet -> Arrays.stream(dropSet.items)).forEach(itemId ->
-			{
-				if (!tappableConfig.itemCounts.containsKey(itemId))
-				{
-					LogManager.getLogger().fatal("Tappable config {} has no item count for item {}", tappableConfig.icon, itemId);
-					System.exit(1);
-					throw new AssertionError();
-				}
-			});
+			LogManager.getLogger().warn("No tappable configs provided");
 		}
 
 		this.random = new Random();
@@ -102,24 +44,29 @@ public class TappableGenerator
 	@NotNull
 	public Tappable[] generateTappables(int tileX, int tileY, long currentTime)
 	{
+		if (this.staticData.tappablesConfig.tappables.length == 0)
+		{
+			return new Tappable[0];
+		}
+
 		LinkedList<Tappable> tappables = new LinkedList<>();
 		for (int count = this.random.nextInt(MIN_COUNT, MAX_COUNT + 1); count > 0; count--)
 		{
 			long spawnDelay = this.random.nextLong(MIN_DELAY, MAX_DELAY + 1);
 			long duration = this.random.nextLong(MIN_DURATION, MAX_DURATION + 1);
 
-			TappableConfig tappableConfig = this.tappableConfigs[this.random.nextInt(0, this.tappableConfigs.length)];
+			TappablesConfig.TappableConfig tappableConfig = this.staticData.tappablesConfig.tappables[this.random.nextInt(0, this.staticData.tappablesConfig.tappables.length)];
 
 			float[] tileBounds = getTileBounds(tileX, tileY);
 			float lat = this.random.nextFloat(tileBounds[1], tileBounds[0]);
 			float lon = this.random.nextFloat(tileBounds[2], tileBounds[3]);
 
-			int dropSetIndex = this.random.nextInt(0, Arrays.stream(tappableConfig.dropSets).mapToInt(dropSet -> dropSet.chance).sum());
-			TappableConfig.DropSet dropSet = null;
-			for (TappableConfig.DropSet dropSet1 : tappableConfig.dropSets)
+			int dropSetIndex = this.random.nextInt(0, Arrays.stream(tappableConfig.dropSets()).mapToInt(dropSet -> dropSet.chance()).sum());
+			TappablesConfig.TappableConfig.DropSet dropSet = null;
+			for (TappablesConfig.TappableConfig.DropSet dropSet1 : tappableConfig.dropSets())
 			{
 				dropSet = dropSet1;
-				dropSetIndex -= dropSet1.chance;
+				dropSetIndex -= dropSet1.chance();
 				if (dropSetIndex <= 0)
 				{
 					break;
@@ -131,13 +78,18 @@ public class TappableGenerator
 			}
 
 			LinkedList<Tappable.Drops.Item> items = new LinkedList<>();
-			for (String itemId : dropSet.items)
+			for (String itemId : dropSet.items())
 			{
-				TappableConfig.ItemCount itemCount = tappableConfig.itemCounts.get(itemId);
-				items.add(new Tappable.Drops.Item(itemId, this.random.nextInt(itemCount.min, itemCount.max + 1)));
+				TappablesConfig.TappableConfig.ItemCount itemCount = tappableConfig.itemCounts().get(itemId);
+				items.add(new Tappable.Drops.Item(itemId, this.random.nextInt(itemCount.min(), itemCount.max() + 1)));
 			}
+
+			// TODO: determine from drops
+			int experiencePoints = 0;
+			Tappable.Rarity rarity = Tappable.Rarity.COMMON;
+
 			Tappable.Drops drops = new Tappable.Drops(
-					tappableConfig.experiencePoints,
+					experiencePoints,
 					items.toArray(Tappable.Drops.Item[]::new)
 			);
 
@@ -147,8 +99,8 @@ public class TappableGenerator
 					lon,
 					currentTime + spawnDelay,
 					duration,
-					tappableConfig.icon,
-					Tappable.Rarity.COMMON,    // TODO: determine rarity from drops
+					tappableConfig.icon(),
+					rarity,
 					drops
 			);
 			tappables.add(tappable);
