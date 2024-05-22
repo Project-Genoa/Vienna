@@ -59,8 +59,6 @@ public class Spawner
 
 	public void spawnTile(int tileX, int tileY)
 	{
-		LogManager.getLogger().info("Spawning tappables for tile {},{}", tileX, tileY);
-
 		long spawnCycleTime = this.spawnCycleTime;
 		int spawnCycleIndex = this.spawnCycleIndex;
 
@@ -76,8 +74,6 @@ public class Spawner
 	private void doSpawnCycle()
 	{
 		ActiveTiles.ActiveTile[] activeTiles = this.activeTiles.getActiveTiles(this.spawnCycleTime);
-
-		LogManager.getLogger().info("Spawning tappables for {} tiles", activeTiles.length);
 
 		while (this.spawnCycleTime < System.currentTimeMillis())
 		{
