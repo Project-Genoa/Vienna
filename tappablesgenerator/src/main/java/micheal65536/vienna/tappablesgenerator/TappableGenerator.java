@@ -7,6 +7,7 @@ import micheal65536.vienna.staticdata.StaticData;
 import micheal65536.vienna.staticdata.TappablesConfig;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.Random;
 import java.util.UUID;
@@ -84,9 +85,8 @@ public class TappableGenerator
 				items.add(new Tappable.Drops.Item(itemId, this.random.nextInt(itemCount.min(), itemCount.max() + 1)));
 			}
 
-			// TODO: determine from drops
-			int experiencePoints = 0;
-			Tappable.Rarity rarity = Tappable.Rarity.COMMON;
+			int experiencePoints = items.stream().mapToInt(item -> this.staticData.catalog.itemsCatalog.getItem(item.id()).experience().tappable() * item.count()).sum();
+			Tappable.Rarity rarity = items.stream().map(item -> this.staticData.catalog.itemsCatalog.getItem(item.id()).rarity()).max(Comparator.comparing(rarity1 -> rarity1.ordinal())).map(rarity1 -> Tappable.Rarity.valueOf(rarity1.name())).orElseThrow();
 
 			Tappable.Drops drops = new Tappable.Drops(
 					experiencePoints,
