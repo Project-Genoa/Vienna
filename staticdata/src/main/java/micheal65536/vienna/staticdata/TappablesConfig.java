@@ -20,7 +20,10 @@ public final class TappablesConfig
 			LinkedList<TappableConfig> tappables = new LinkedList<>();
 			for (File file : dir.listFiles())
 			{
-				tappables.add(new Gson().fromJson(new FileReader(file), TappableConfig.class));
+				if (file.isFile() && file.getName().endsWith(".json"))
+				{
+					tappables.add(new Gson().fromJson(new FileReader(file), TappableConfig.class));
+				}
 			}
 			this.tappables = tappables.toArray(TappableConfig[]::new);
 

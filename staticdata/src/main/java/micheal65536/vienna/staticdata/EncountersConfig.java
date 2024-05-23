@@ -19,7 +19,10 @@ public final class EncountersConfig
 			LinkedList<EncounterConfig> encounters = new LinkedList<>();
 			for (File file : dir.listFiles())
 			{
-				encounters.add(new Gson().fromJson(new FileReader(file), EncounterConfig.class));
+				if (file.isFile() && file.getName().endsWith(".json"))
+				{
+					encounters.add(new Gson().fromJson(new FileReader(file), EncounterConfig.class));
+				}
 			}
 			this.encounters = encounters.toArray(EncounterConfig[]::new);
 		}
