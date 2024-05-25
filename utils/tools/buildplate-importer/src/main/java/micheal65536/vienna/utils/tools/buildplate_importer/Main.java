@@ -27,6 +27,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -92,6 +93,7 @@ public class Main
 			System.exit(1);
 			return;
 		}
+		playerId = playerId.toLowerCase(Locale.ROOT);
 
 		LogManager.getLogger().info("Connecting to database");
 		EarthDB earthDB;
