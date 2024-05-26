@@ -19,6 +19,7 @@ import org.apache.logging.log4j.core.config.Configurator;
 import org.jetbrains.annotations.NotNull;
 
 import micheal65536.vienna.utils.http.routing.Application;
+import micheal65536.vienna.utils.http.routing.Handler;
 import micheal65536.vienna.utils.http.routing.Request;
 import micheal65536.vienna.utils.http.routing.Response;
 import micheal65536.vienna.utils.http.routing.Router;
@@ -93,7 +94,7 @@ public class Main
 	{
 		Application application = new Application();
 
-		application.router.addHandler(new Router.Route.Builder(Request.Method.GET, "/api/v1.1/player/environment").addQueryParameter("buildNumber").build(), request ->
+		Handler locatorHandler = request ->
 		{
 			record LocatorResponse(
 					@NotNull Result result,
@@ -118,7 +119,9 @@ public class Main
 			locatorResponse.result.serviceEnvironments.put("production", new LocatorResponse.Result.ServiceEnvironment(apiAddress, cdnAddress, playfabTitleId));
 			locatorResponse.result.supportedEnvironments.put("2020.1217.02", new String[]{"production"});
 			return Response.okFromJson(locatorResponse, LocatorResponse.class);
-		});
+		};
+		application.router.addHandler(new Router.Route.Builder(Request.Method.GET, "/player/environment").addQueryParameter("buildNumber").build(), locatorHandler);
+		application.router.addHandler(new Router.Route.Builder(Request.Method.GET, "/api/v1.1/player/environment").addQueryParameter("buildNumber").build(), locatorHandler);    // for some reason MCE sometimes includes the "/api/v1.1" prefix on the locator URL and sometimes does not
 
 		return application;
 	}
