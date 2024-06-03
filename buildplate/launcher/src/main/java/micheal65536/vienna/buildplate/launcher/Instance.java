@@ -25,9 +25,12 @@ import micheal65536.vienna.eventbus.client.RequestHandler;
 import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.file.FileVisitResult;
 import java.nio.file.FileVisitor;
 import java.nio.file.Files;
@@ -892,9 +895,27 @@ public class Instance
 			this.serverProcess = new ProcessBuilder()
 					.command(this.javaCmd, "-jar", this.fabricJarName, "-nogui")
 					.directory(this.serverWorkDir)
-					.redirectOutput(ProcessBuilder.Redirect.to(new File("log_%s-server".formatted(this.instanceId))))
+					.redirectOutput(ProcessBuilder.Redirect.PIPE)
 					.redirectErrorStream(true)
 					.start();
+			new Thread(() ->
+			{
+				try
+				{
+					InputStream inputStream = this.serverProcess.getInputStream();
+					InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+					BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+					String line;
+					while ((line = bufferedReader.readLine()) != null)
+					{
+						this.logger.debug("[server] %s".formatted(line));
+					}
+				}
+				catch (IOException exception)
+				{
+					this.logger.debug("Error reading server process log output", exception);
+				}
+			}).start();
 			this.logger.info("Server process started, PID {}", this.serverProcess.pid());
 		}
 		catch (IOException exception)
@@ -935,9 +956,27 @@ public class Instance
 							"-connectorPluginClass", "micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin",
 							"-connectorPluginArg", this.connectorPluginArgString)
 					.directory(this.bridgeWorkDir)
-					.redirectOutput(ProcessBuilder.Redirect.to(new File("log_%s-bridge".formatted(this.instanceId))))
+					.redirectOutput(ProcessBuilder.Redirect.PIPE)
 					.redirectErrorStream(true)
 					.start();
+			new Thread(() ->
+			{
+				try
+				{
+					InputStream inputStream = process.getInputStream();
+					InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+					BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+					String line;
+					while ((line = bufferedReader.readLine()) != null)
+					{
+						this.logger.debug("[bridge] %s".formatted(line));
+					}
+				}
+				catch (IOException exception)
+				{
+					this.logger.debug("Error reading bridge process log output", exception);
+				}
+			}).start();
 			this.bridgeProcess = process;
 			this.logger.info("Bridge process started, PID {}", this.bridgeProcess.pid());
 
