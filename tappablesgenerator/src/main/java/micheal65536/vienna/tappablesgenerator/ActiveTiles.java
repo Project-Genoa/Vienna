@@ -10,6 +10,7 @@ import micheal65536.vienna.eventbus.client.RequestHandler;
 
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 
 public class ActiveTiles
@@ -53,12 +54,21 @@ public class ActiveTiles
 
 					long currentTime = System.currentTimeMillis();
 					ActiveTiles.this.pruneActiveTiles(currentTime);
+					LinkedList<ActiveTile> newActiveTiles = new LinkedList<>();
 					for (int tileX = activeTileNotification.x - ACTIVE_TILE_RADIUS; tileX < activeTileNotification.x + ACTIVE_TILE_RADIUS + 1; tileX++)
 					{
 						for (int tileY = activeTileNotification.y - ACTIVE_TILE_RADIUS; tileY < activeTileNotification.y + ACTIVE_TILE_RADIUS + 1; tileY++)
 						{
-							ActiveTiles.this.markTileActive(tileX, tileY, currentTime);
+							ActiveTile activeTile = ActiveTiles.this.markTileActive(tileX, tileY, currentTime);
+							if (activeTile.latestActiveTime == activeTile.firstActiveTime) // indicating that the tile is newly-active
+							{
+								newActiveTiles.add(activeTile);
+							}
 						}
+					}
+					if (!newActiveTiles.isEmpty())
+					{
+						ActiveTiles.this.activeTileListener.active(newActiveTiles.toArray(ActiveTile[]::new));
 					}
 
 					return "";
@@ -84,24 +94,26 @@ public class ActiveTiles
 		return this.activeTiles.values().stream().filter(activeTile -> currentTime < activeTile.latestActiveTime + ACTIVE_TILE_EXPIRY_TIME).toArray(ActiveTile[]::new);
 	}
 
-	private void markTileActive(int tileX, int tileY, long currentTime)
+	@NotNull
+	private ActiveTile markTileActive(int tileX, int tileY, long currentTime)
 	{
 		ActiveTile activeTile = this.activeTiles.getOrDefault((tileX << 16) + tileY, null);
 		if (activeTile == null)
 		{
 			LogManager.getLogger().info("Tile {},{} is becoming active", tileX, tileY);
 			activeTile = new ActiveTile(tileX, tileY, currentTime, currentTime);
-			this.activeTileListener.active(activeTile);
 		}
 		else
 		{
 			activeTile = new ActiveTile(tileX, tileY, activeTile.firstActiveTime, currentTime);
 		}
 		this.activeTiles.put((tileX << 16) + tileY, activeTile);
+		return activeTile;
 	}
 
 	private void pruneActiveTiles(long currentTime)
 	{
+		LinkedList<ActiveTile> inactiveTiles = new LinkedList<>();
 		for (Iterator<Map.Entry<Integer, ActiveTile>> iterator = this.activeTiles.entrySet().iterator(); iterator.hasNext(); )
 		{
 			Map.Entry<Integer, ActiveTile> entry = iterator.next();
@@ -110,8 +122,12 @@ public class ActiveTiles
 			{
 				LogManager.getLogger().info("Tile {},{} is inactive", activeTile.tileX, activeTile.tileY);
 				iterator.remove();
-				this.activeTileListener.inactive(activeTile);
+				inactiveTiles.add(activeTile);
 			}
+		}
+		if (!inactiveTiles.isEmpty())
+		{
+			this.activeTileListener.inactive(inactiveTiles.toArray(ActiveTile[]::new));
 		}
 	}
 
@@ -126,8 +142,8 @@ public class ActiveTiles
 
 	public interface ActiveTileListener
 	{
-		void active(@NotNull ActiveTile activeTile);
+		void active(@NotNull ActiveTile[] activeTiles);
 
-		void inactive(@NotNull ActiveTile activeTile);
+		void inactive(@NotNull ActiveTile[] activeTiles);
 	}
 }

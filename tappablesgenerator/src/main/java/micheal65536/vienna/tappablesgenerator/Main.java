@@ -86,13 +86,13 @@ public class Main
 		ActiveTiles activeTiles = new ActiveTiles(eventBusClient, new ActiveTiles.ActiveTileListener()
 		{
 			@Override
-			public void active(ActiveTiles.@NotNull ActiveTile activeTile)
+			public void active(@NotNull ActiveTiles.ActiveTile[] activeTiles)
 			{
-				spawner[0].spawnTile(activeTile.tileX(), activeTile.tileY());
+				spawner[0].spawnTiles(activeTiles);
 			}
 
 			@Override
-			public void inactive(ActiveTiles.@NotNull ActiveTile activeTile)
+			public void inactive(@NotNull ActiveTiles.ActiveTile[] activeTiles)
 			{
 				// empty
 			}

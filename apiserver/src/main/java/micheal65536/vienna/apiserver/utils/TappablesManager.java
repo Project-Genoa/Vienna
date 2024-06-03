@@ -143,17 +143,20 @@ public final class TappablesManager
 		{
 			case "tappableSpawn" ->
 			{
-				Tappable tappable;
+				Tappable[] tappables;
 				try
 				{
-					tappable = new Gson().fromJson(event.data, Tappable.class);
+					tappables = new Gson().fromJson(event.data, Tappable[].class);
 				}
 				catch (Exception exception)
 				{
 					LogManager.getLogger().error("Could not deserialise tappable spawn event", exception);
 					break;
 				}
-				this.addTappable(tappable);
+				for (Tappable tappable : tappables)
+				{
+					this.addTappable(tappable);
+				}
 
 				if (this.pruneCounter++ == 10)
 				{
@@ -163,17 +166,20 @@ public final class TappablesManager
 			}
 			case "encounterSpawn" ->
 			{
-				Encounter encounter;
+				Encounter[] encounters;
 				try
 				{
-					encounter = new Gson().fromJson(event.data, Encounter.class);
+					encounters = new Gson().fromJson(event.data, Encounter[].class);
 				}
 				catch (Exception exception)
 				{
 					LogManager.getLogger().error("Could not deserialise encounter spawn event", exception);
 					break;
 				}
-				this.addEncounter(encounter);
+				for (Encounter encounter : encounters)
+				{
+					this.addEncounter(encounter);
+				}
 
 				if (this.pruneCounter++ == 10)
 				{

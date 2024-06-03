@@ -7,7 +7,9 @@ import org.jetbrains.annotations.NotNull;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
 
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedList;
 
 public class Spawner
 {
@@ -57,6 +59,7 @@ public class Spawner
 		}
 	}
 
+	@Deprecated
 	public void spawnTile(int tileX, int tileY)
 	{
 		long spawnCycleTime = this.spawnCycleTime;
@@ -68,7 +71,40 @@ public class Spawner
 			spawnCycleIndex++;
 		}
 
-		this.doSpawnCyclesForTile(tileX, tileY, spawnCycleTime, spawnCycleIndex);
+		LinkedList<Tappable> tappables = new LinkedList<>();
+		LinkedList<Encounter> encounters = new LinkedList<>();
+		this.doSpawnCyclesForTile(tileX, tileY, spawnCycleTime, spawnCycleIndex, tappables, encounters);
+
+		long tappableCutoffTime = spawnCycleTime - SPAWN_INTERVAL;
+		tappables.removeIf(tappable -> tappable.spawnTime() + tappable.validFor() < tappableCutoffTime);
+		encounters.removeIf(encounter -> encounter.spawnTime() + encounter.validFor() < tappableCutoffTime);
+
+		this.sendSpawnedTappables(tappables, encounters);
+	}
+
+	public void spawnTiles(@NotNull ActiveTiles.ActiveTile[] activeTiles)
+	{
+		long spawnCycleTime = this.spawnCycleTime;
+		int spawnCycleIndex = this.spawnCycleIndex;
+
+		while (spawnCycleTime < System.currentTimeMillis())
+		{
+			spawnCycleTime += SPAWN_INTERVAL;
+			spawnCycleIndex++;
+		}
+
+		LinkedList<Tappable> tappables = new LinkedList<>();
+		LinkedList<Encounter> encounters = new LinkedList<>();
+		for (ActiveTiles.ActiveTile activeTile : activeTiles)
+		{
+			this.doSpawnCyclesForTile(activeTile.tileX(), activeTile.tileY(), spawnCycleTime, spawnCycleIndex, tappables, encounters);
+		}
+
+		long tappableCutoffTime = spawnCycleTime - SPAWN_INTERVAL;
+		tappables.removeIf(tappable -> tappable.spawnTime() + tappable.validFor() < tappableCutoffTime);
+		encounters.removeIf(encounter -> encounter.spawnTime() + encounter.validFor() < tappableCutoffTime);
+
+		this.sendSpawnedTappables(tappables, encounters);
 	}
 
 	private void doSpawnCycle()
@@ -81,38 +117,46 @@ public class Spawner
 			this.spawnCycleIndex++;
 		}
 
+		LinkedList<Tappable> tappables = new LinkedList<>();
+		LinkedList<Encounter> encounters = new LinkedList<>();
 		for (ActiveTiles.ActiveTile activeTile : activeTiles)
 		{
-			this.doSpawnCyclesForTile(activeTile.tileX(), activeTile.tileY(), this.spawnCycleTime, this.spawnCycleIndex);
+			this.doSpawnCyclesForTile(activeTile.tileX(), activeTile.tileY(), this.spawnCycleTime, this.spawnCycleIndex, tappables, encounters);
 		}
+
+		long tappableCutoffTime = this.spawnCycleTime - SPAWN_INTERVAL;
+		tappables.removeIf(tappable -> tappable.spawnTime() + tappable.validFor() < tappableCutoffTime);
+		encounters.removeIf(encounter -> encounter.spawnTime() + encounter.validFor() < tappableCutoffTime);
+
+		this.sendSpawnedTappables(tappables, encounters);
 	}
 
-	private void doSpawnCyclesForTile(int tileX, int tileY, long spawnCycleTime, int spawnCycleIndex)
+	private void doSpawnCyclesForTile(int tileX, int tileY, long spawnCycleTime, int spawnCycleIndex, @NotNull LinkedList<Tappable> tappables, @NotNull LinkedList<Encounter> encounters)
 	{
 		int lastSpawnCycle = this.lastSpawnCycleForTile.getOrDefault((tileX << 16) + tileY, 0);
 		int cyclesToSpawn = Math.min(spawnCycleIndex - lastSpawnCycle, this.maxTappableLifetimeIntervals);
 		for (int index = 0; index < cyclesToSpawn; index++)
 		{
-			this.spawnTappablesForTile(tileX, tileY, spawnCycleTime - SPAWN_INTERVAL * (cyclesToSpawn - index - 1));
+			this.spawnTappablesForTile(tileX, tileY, spawnCycleTime - SPAWN_INTERVAL * (cyclesToSpawn - index - 1), tappables, encounters);
 		}
 		this.lastSpawnCycleForTile.put((tileX << 16) + tileY, spawnCycleIndex);
 	}
 
-	private void spawnTappablesForTile(int tileX, int tileY, long currentTime)
+	private void spawnTappablesForTile(int tileX, int tileY, long currentTime, @NotNull LinkedList<Tappable> tappables, @NotNull LinkedList<Encounter> encounters)
 	{
-		for (Tappable tappable : this.tappableGenerator.generateTappables(tileX, tileY, currentTime))
+		tappables.addAll(Arrays.asList(this.tappableGenerator.generateTappables(tileX, tileY, currentTime)));
+		encounters.addAll(Arrays.asList(this.encounterGenerator.generateEncounters(tileX, tileY, currentTime)));
+	}
+
+	private void sendSpawnedTappables(@NotNull LinkedList<Tappable> tappables, @NotNull LinkedList<Encounter> encounters)
+	{
+		if (!this.publisher.publish("tappables", "tappableSpawn", new Gson().toJson(tappables.toArray(Tappable[]::new))).join())
 		{
-			if (!this.publisher.publish("tappables", "tappableSpawn", new Gson().toJson(tappable)).join())
-			{
-				LogManager.getLogger().error("Event bus server rejected tappable spawn event");
-			}
+			LogManager.getLogger().error("Event bus server rejected tappable spawn event");
 		}
-		for (Encounter encounter : this.encounterGenerator.generateEncounters(tileX, tileY, currentTime))
+		if (!this.publisher.publish("tappables", "encounterSpawn", new Gson().toJson(encounters.toArray(Encounter[]::new))).join())
 		{
-			if (!this.publisher.publish("tappables", "encounterSpawn", new Gson().toJson(encounter)).join())
-			{
-				LogManager.getLogger().error("Event bus server rejected encounter spawn event");
-			}
+			LogManager.getLogger().error("Event bus server rejected encounter spawn event");
 		}
 	}
 }
