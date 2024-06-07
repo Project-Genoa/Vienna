@@ -16,6 +16,8 @@ import java.util.stream.IntStream;
 
 public final class TappablesManager
 {
+	private final long GRACE_PERIOD = 30000;
+
 	private final Subscriber subscriber;
 	private final RequestSender requestSender;
 
@@ -118,6 +120,31 @@ public final class TappablesManager
 		return null;
 	}
 
+	public boolean isTappableValidFor(@NotNull Tappable tappable, long requestTime, float lat, float lon)
+	{
+		if (tappable.spawnTime - GRACE_PERIOD > requestTime || tappable.spawnTime + tappable.validFor + GRACE_PERIOD <= requestTime)
+		{
+			return false;
+		}
+
+		// TODO: check player location is in radius
+
+		return true;
+	}
+
+	// TODO: actually use this
+	public boolean isEncounterValidFor(@NotNull Encounter encounter, long requestTime, float lat, float lon)
+	{
+		if (encounter.spawnTime - GRACE_PERIOD > requestTime || encounter.spawnTime + encounter.validFor <= requestTime) // no grace period when checking end time because the buildplate instance shutdown does not include the grace period anyway
+		{
+			return false;
+		}
+
+		// TODO: check player location is in radius
+
+		return true;
+	}
+
 	public void notifyTileActive(@NotNull String playerId, float lat, float lon)
 	{
 		int tileX = xToTile(lonToX(lon));
@@ -208,7 +235,7 @@ public final class TappablesManager
 		{
 			Tappable tappable = entry.getValue();
 			long expiresAt = tappable.spawnTime + tappable.validFor;
-			return expiresAt <= currentTime;
+			return expiresAt + GRACE_PERIOD <= currentTime;
 		}));
 		this.tappables.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 
@@ -216,7 +243,7 @@ public final class TappablesManager
 		{
 			Encounter encounter = entry.getValue();
 			long expiresAt = encounter.spawnTime + encounter.validFor;
-			return expiresAt <= currentTime;
+			return expiresAt + GRACE_PERIOD <= currentTime;
 		}));
 		this.encounters.entrySet().removeIf(entry -> entry.getValue().isEmpty());
 	}
