@@ -27,9 +27,11 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 public class Main
@@ -70,7 +72,7 @@ public class Main
 				.hasArg()
 				.required()
 				.argName("file")
-				.desc("World file or directory to import")
+				.desc("World file to import")
 				.build());
 		CommandLine commandLine;
 		String dbConnectionString;
@@ -136,8 +138,8 @@ public class Main
 			eventBusClient = null;
 		}
 
-		byte[] serverData = createServerDataFromWorldFile(worldFile);
-		if (serverData == null)
+		WorldData worldData = readWorldFile(worldFile);
+		if (worldData == null)
 		{
 			LogManager.getLogger().fatal("Could not get world data");
 			System.exit(2);
@@ -146,7 +148,7 @@ public class Main
 
 		String buildplateId = UUID.randomUUID().toString();
 
-		if (!storeBuildplate(earthDB, eventBusClient, objectStoreClient, playerId, buildplateId, serverData, System.currentTimeMillis()))
+		if (!storeBuildplate(earthDB, eventBusClient, objectStoreClient, playerId, buildplateId, worldData, System.currentTimeMillis()))
 		{
 			LogManager.getLogger().fatal("Could not add buildplate");
 			System.exit(3);
@@ -158,66 +160,162 @@ public class Main
 		return;
 	}
 
-	private static byte[] createServerDataFromWorldFile(@NotNull String worldFileName)
+	@Nullable
+	private static WorldData readWorldFile(@NotNull String worldFileName)
 	{
-		File worldFile = new File(worldFileName);
-		if (!worldFile.exists())
+		HashMap<String, byte[]> worldFileContents = new HashMap<>();
+		try (FileInputStream fileInputStream = new FileInputStream(new File(worldFileName)); ZipInputStream zipInputStream = new ZipInputStream(fileInputStream))
 		{
-			LogManager.getLogger().error("World file/directory does not exist");
-			return null;
-		}
-		if (worldFile.isFile())
-		{
-			byte[] data;
-			try (FileInputStream fileInputStream = new FileInputStream(worldFile))
+			for (ZipEntry zipEntry = zipInputStream.getNextEntry(); zipEntry != null; zipEntry = zipInputStream.getNextEntry())
 			{
-				data = fileInputStream.readAllBytes();
-			}
-			catch (IOException exception)
-			{
-				LogManager.getLogger().error("Could not read world file", exception);
-				return null;
-			}
-			return data;
-		}
-		else if (worldFile.isDirectory())
-		{
-			byte[] data;
-			try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream))
-			{
-				for (String dirName : new String[]{"region", "entities"})
+				boolean skip;
+				if (zipEntry.isDirectory())
 				{
-					File dir = new File(worldFile, dirName);
-					for (String regionName : new String[]{"r.0.0.mca", "r.0.-1.mca", "r.-1.0.mca", "r.-1.-1.mca"})
+					skip = true;
+				}
+				else
+				{
+					String name = zipEntry.getName();
+					if (name.equals("buildplate_metadata.json"))
 					{
-						ZipEntry zipEntry = new ZipEntry(dirName + "/" + regionName);
-						zipEntry.setMethod(ZipEntry.DEFLATED);
-						zipOutputStream.putNextEntry(zipEntry);
-						try (FileInputStream fileInputStream = new FileInputStream(new File(dir, regionName)))
+						skip = false;
+					}
+					else
+					{
+						String[] parts = name.split("/");
+						if (parts.length != 2)
 						{
-							fileInputStream.transferTo(zipOutputStream);
+							skip = true;
 						}
-						zipOutputStream.closeEntry();
+						else
+						{
+							if (!parts[0].equals("region") && !parts[0].equals("entities"))
+							{
+								skip = true;
+							}
+							else if (!parts[1].equals("r.0.0.mca") && !parts[1].equals("r.0.-1.mca") && !parts[1].equals("r.-1.0.mca") && !parts[1].equals("r.-1.-1.mca"))
+							{
+								skip = true;
+							}
+							else
+							{
+								skip = false;
+							}
+						}
 					}
 				}
-				zipOutputStream.finish();
-				data = byteArrayOutputStream.toByteArray();
+
+				if (!skip)
+				{
+					ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+					zipInputStream.transferTo(byteArrayOutputStream);
+					worldFileContents.put(zipEntry.getName(), byteArrayOutputStream.toByteArray());
+				}
+
+				zipInputStream.closeEntry();
 			}
-			catch (IOException exception)
-			{
-				LogManager.getLogger().error("Could not get saved world data from world directory", exception);
-				return null;
-			}
-			return data;
 		}
-		else
+		catch (IOException exception)
 		{
-			LogManager.getLogger().error("World file/directory cannot be accessed");
+			LogManager.getLogger().error("Could not read world file", exception);
 			return null;
 		}
+
+		byte[] serverData;
+		try (ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream(); ZipOutputStream zipOutputStream = new ZipOutputStream(byteArrayOutputStream))
+		{
+			for (String dirName : new String[]{"region", "entities"})
+			{
+				for (String regionName : new String[]{"r.0.0.mca", "r.0.-1.mca", "r.-1.0.mca", "r.-1.-1.mca"})
+				{
+					byte[] data = worldFileContents.getOrDefault(dirName + "/" + regionName, null);
+					if (data == null)
+					{
+						LogManager.getLogger().error("World file is missing {}", dirName + "/" + regionName);
+						return null;
+					}
+
+					ZipEntry zipEntry = new ZipEntry(dirName + "/" + regionName);
+					zipEntry.setMethod(ZipEntry.DEFLATED);
+					zipOutputStream.putNextEntry(zipEntry);
+					zipOutputStream.write(data);
+					zipOutputStream.closeEntry();
+				}
+			}
+			zipOutputStream.finish();
+			serverData = byteArrayOutputStream.toByteArray();
+		}
+		catch (IOException exception)
+		{
+			LogManager.getLogger().error("Could not prepare server data", exception);
+			return null;
+		}
+
+		int size;
+		int offset;
+		boolean night;
+		try
+		{
+			byte[] buildplateMetadataFileData = worldFileContents.getOrDefault("buildplate_metadata.json", null);
+			String buildplateMetadataString = buildplateMetadataFileData != null ? new String(buildplateMetadataFileData, StandardCharsets.UTF_8) : null;
+			if (buildplateMetadataString == null)
+			{
+				LogManager.getLogger().warn("World file does not contain buildplate_metadata.json, using default values");
+				size = 16;
+				offset = 63;
+				night = false;
+			}
+			else
+			{
+				int version;
+				record BuildplateMetadataVersion(
+						int version
+				)
+				{
+				}
+				BuildplateMetadataVersion buildplateMetadataVersion = new Gson().fromJson(buildplateMetadataString, BuildplateMetadataVersion.class);
+				version = buildplateMetadataVersion.version;
+
+				switch (version)
+				{
+					case 1 ->
+					{
+						record BuildplateMetadata(
+								int size,
+								int offset,
+								boolean night
+						)
+						{
+						}
+						BuildplateMetadata buildplateMetadata = new Gson().fromJson(buildplateMetadataString, BuildplateMetadata.class);
+						size = buildplateMetadata.size;
+						offset = buildplateMetadata.offset;
+						night = buildplateMetadata.night;
+					}
+					default ->
+					{
+						LogManager.getLogger().error("Unsupported buildplate metadata version {}", version);
+						return null;
+					}
+				}
+			}
+		}
+		catch (Exception exception)
+		{
+			LogManager.getLogger().error("Could not read buildplate metadata file", exception);
+			return null;
+		}
+
+		if (size != 8 && size != 16 && size != 32)
+		{
+			LogManager.getLogger().error("Invalid buildplate size {}", size);
+			return null;
+		}
+
+		return new WorldData(serverData, size, offset, night);
 	}
 
-	private static boolean storeBuildplate(@NotNull EarthDB earthDB, @Nullable EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull String playerId, @NotNull String buildplateId, byte[] serverData, long timestamp)
+	private static boolean storeBuildplate(@NotNull EarthDB earthDB, @Nullable EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull String playerId, @NotNull String buildplateId, @NotNull WorldData worldData, long timestamp)
 	{
 		String preview;
 		if (eventBusClient != null)
@@ -230,7 +328,7 @@ public class Main
 			}
 
 			RequestSender requestSender = eventBusClient.addRequestSender();
-			preview = requestSender.request("buildplates", "preview", new Gson().toJson(new PreviewRequest(Base64.getEncoder().encodeToString(serverData), false))).join();
+			preview = requestSender.request("buildplates", "preview", new Gson().toJson(new PreviewRequest(Base64.getEncoder().encodeToString(worldData.serverData), worldData.night))).join();
 			requestSender.close();
 
 			if (preview == null)
@@ -243,7 +341,7 @@ public class Main
 			preview = null;
 		}
 
-		String serverDataObjectId = objectStoreClient.store(serverData).join();
+		String serverDataObjectId = objectStoreClient.store(worldData.serverData).join();
 		if (serverDataObjectId == null)
 		{
 			LogManager.getLogger().error("Could not store data object in object store");
@@ -265,7 +363,14 @@ public class Main
 					{
 						Buildplates buildplates = (Buildplates) results1.get("buildplates").value();
 
-						Buildplates.Buildplate buildplate = new Buildplates.Buildplate(16, 63, 33, false, timestamp, serverDataObjectId, previewObjectId);    // TODO: make size/offset/etc. configurable
+						int scale = switch (worldData.size)
+						{
+							case 8 -> 14;
+							case 16 -> 33;
+							case 32 -> 64;
+							default -> 33;
+						};
+						Buildplates.Buildplate buildplate = new Buildplates.Buildplate(worldData.size, worldData.offset, scale, worldData.night, timestamp, serverDataObjectId, previewObjectId);
 
 						buildplates.addBuildplate(buildplateId, buildplate);
 
@@ -282,5 +387,14 @@ public class Main
 			objectStoreClient.delete(previewObjectId);
 			return false;
 		}
+	}
+
+	private record WorldData(
+			byte[] serverData,
+			int size,
+			int offset,
+			boolean night
+	)
+	{
 	}
 }
