@@ -8,6 +8,7 @@ import micheal65536.vienna.db.model.player.workshop.InputItem;
 import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
+import java.util.LinkedList;
 
 public final class CraftingCalculator
 {
@@ -20,7 +21,7 @@ public final class CraftingCalculator
 		int completedRounds = activeJob.finishedEarly() ? activeJob.totalRounds() : Math.min((int) ((currentTime - activeJob.startTime()) / roundDuration), activeJob.totalRounds());
 		int availableRounds = completedRounds - activeJob.collectedRounds();
 
-		InputItem[] input = new InputItem[recipe.ingredients().length];
+		LinkedList<InputItem> input = new LinkedList<>();
 		if (activeJob.input().length != recipe.ingredients().length)
 		{
 			throw new AssertionError();
@@ -28,18 +29,33 @@ public final class CraftingCalculator
 		for (int index = 0; index < recipe.ingredients().length; index++)
 		{
 			int usedCount = recipe.ingredients()[index].count() * completedRounds;
-			InputItem inputItem = activeJob.input()[index];
-			if (inputItem.instances().length > 0)
+			InputItem[] inputItems = activeJob.input()[index];
+			for (InputItem inputItem : inputItems)
 			{
-				if (inputItem.instances().length != inputItem.count())
+				if (usedCount == 0)
 				{
-					throw new AssertionError();
+					input.add(inputItem);
 				}
-				input[index] = new InputItem(inputItem.id(), inputItem.count() - usedCount, Arrays.copyOfRange(inputItem.instances(), usedCount, inputItem.instances().length));
-			}
-			else
-			{
-				input[index] = new InputItem(inputItem.id(), inputItem.count() - usedCount, new NonStackableItemInstance[0]);
+				else if (usedCount > inputItem.count())
+				{
+					usedCount -= inputItem.count();
+				}
+				else
+				{
+					if (inputItem.instances().length > 0)
+					{
+						if (inputItem.instances().length != inputItem.count())
+						{
+							throw new AssertionError();
+						}
+						input.add(new InputItem(inputItem.id(), inputItem.count() - usedCount, Arrays.copyOfRange(inputItem.instances(), usedCount, inputItem.instances().length)));
+					}
+					else
+					{
+						input.add(new InputItem(inputItem.id(), inputItem.count() - usedCount, new NonStackableItemInstance[0]));
+					}
+					usedCount = 0;
+				}
 			}
 		}
 
@@ -47,7 +63,7 @@ public final class CraftingCalculator
 				completedRounds,
 				availableRounds,
 				activeJob.totalRounds(),
-				input,
+				input.toArray(InputItem[]::new),
 				new State.OutputItem(recipe.output().itemId(), recipe.output().count()),
 				activeJob.startTime() + roundDuration * (completedRounds + 1),
 				activeJob.startTime() + roundDuration * activeJob.totalRounds(),

@@ -166,27 +166,10 @@ public class WorkshopRouter extends Router
 			{
 				return Response.badRequest();
 			}
-			if (startRequest.ingredients.length != recipe.ingredients().length)
-			{
-				return Response.badRequest();
-			}
 			if (recipe.returnItems().length > 0)
 			{
 				// TODO: implement returnItems
 				throw new UnsupportedOperationException();
-			}
-			for (int index = 0; index < recipe.ingredients().length; index++)
-			{
-				Catalog.RecipesCatalog.CraftingRecipe.Ingredient ingredient = recipe.ingredients()[index];
-				StartRequest.Item item = startRequest.ingredients[index];
-				if (Arrays.stream(ingredient.possibleItemIds()).noneMatch(id -> id.equals(item.itemId)))
-				{
-					return Response.badRequest();
-				}
-				if (item.quantity != ingredient.count() * startRequest.multiplier)
-				{
-					return Response.badRequest();
-				}
 			}
 
 			try
@@ -210,16 +193,17 @@ public class WorkshopRouter extends Router
 								return query;
 							}
 
-							LinkedList<InputItem> inputItems = new LinkedList<>();
-							for (StartRequest.Item item : startRequest.ingredients)
+							InputItem[] providedItems = new InputItem[startRequest.ingredients.length];
+							for (int index = 0; index < startRequest.ingredients.length; index++)
 							{
+								StartRequest.Item item = startRequest.ingredients[index];
 								if (item.itemInstanceIds == null || item.itemInstanceIds.length == 0)
 								{
 									if (!inventory.takeItems(item.itemId, item.quantity))
 									{
 										return query;
 									}
-									inputItems.add(new InputItem(item.itemId, item.quantity, new NonStackableItemInstance[0]));
+									providedItems[index] = new InputItem(item.itemId, item.quantity, new NonStackableItemInstance[0]);
 								}
 								else
 								{
@@ -228,12 +212,76 @@ public class WorkshopRouter extends Router
 									{
 										return query;
 									}
-									inputItems.add(new InputItem(item.itemId, item.quantity, instances));
+									providedItems[index] = new InputItem(item.itemId, item.quantity, instances);
 								}
 							}
 							hotbar.limitToInventory(inventory);
 
-							craftingSlot.activeJob = new CraftingSlot.ActiveJob(startRequest.sessionId, recipe.id(), request.timestamp, inputItems.toArray(InputItem[]::new), startRequest.multiplier, 0, false);
+							LinkedList<LinkedList<InputItem>> inputItems = new LinkedList<>();
+							for (Catalog.RecipesCatalog.CraftingRecipe.Ingredient ingredient : recipe.ingredients())
+							{
+								LinkedList<InputItem> ingredientItems = new LinkedList<>();
+								int requiredCount = ingredient.count() * startRequest.multiplier;
+								for (int index = 0; index < providedItems.length; index++)
+								{
+									InputItem providedItem = providedItems[index];
+									if (providedItem.count() == 0)
+									{
+										continue;
+									}
+									if (Arrays.stream(ingredient.possibleItemIds()).noneMatch(id -> id.equals(providedItem.id())))
+									{
+										continue;
+									}
+									if (requiredCount > providedItem.count())
+									{
+										requiredCount -= providedItem.count();
+										ingredientItems.add(providedItem);
+										providedItems[index] = new InputItem(providedItem.id(), 0, new NonStackableItemInstance[0]);
+									}
+									else
+									{
+										NonStackableItemInstance[] takenInstances;
+										NonStackableItemInstance[] remainingInstances;
+										if (providedItem.instances().length > 0)
+										{
+											takenInstances = Arrays.copyOfRange(providedItem.instances(), 0, requiredCount);
+											remainingInstances = Arrays.copyOfRange(providedItem.instances(), requiredCount, providedItem.count());
+										}
+										else
+										{
+											takenInstances = new NonStackableItemInstance[0];
+											remainingInstances = new NonStackableItemInstance[0];
+										}
+										ingredientItems.add(new InputItem(providedItem.id(), requiredCount, takenInstances));
+										providedItems[index] = new InputItem(providedItem.id(), providedItem.count() - requiredCount, remainingInstances);
+										requiredCount = 0;
+									}
+									if (requiredCount == 0)
+									{
+										break;
+									}
+								}
+								if (requiredCount > 0)
+								{
+									return query;
+								}
+								if (ingredientItems.isEmpty())
+								{
+									throw new AssertionError();
+								}
+								inputItems.add(ingredientItems);
+							}
+							if (inputItems.size() != recipe.ingredients().length)
+							{
+								throw new AssertionError();
+							}
+							if (Arrays.stream(providedItems).anyMatch(item -> item.count() > 0))
+							{
+								return query;
+							}
+
+							craftingSlot.activeJob = new CraftingSlot.ActiveJob(startRequest.sessionId, recipe.id(), request.timestamp, inputItems.stream().map(inputItems1 -> inputItems1.toArray(InputItem[]::new)).toArray(InputItem[][]::new), startRequest.multiplier, 0, false);
 
 							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("hotbar", playerId, hotbar);
 
@@ -1027,11 +1075,11 @@ public class WorkshopRouter extends Router
 					activeJob.sessionId(),
 					activeJob.recipeId(),
 					new OutputItem(state.output().id(), state.output().count()),
-					Arrays.stream(activeJob.input()).map(item -> new micheal65536.vienna.apiserver.types.workshop.InputItem(
+					Arrays.stream(activeJob.input()).flatMap(inputItems -> Arrays.stream(inputItems).map(item -> new micheal65536.vienna.apiserver.types.workshop.InputItem(
 							item.id(),
 							item.count(),
 							Arrays.stream(item.instances()).map(NonStackableItemInstance::instanceId).toArray(String[]::new)
-					)).toArray(micheal65536.vienna.apiserver.types.workshop.InputItem[]::new),
+					))).toArray(micheal65536.vienna.apiserver.types.workshop.InputItem[]::new),
 					state.completedRounds(),
 					state.availableRounds(),
 					state.totalRounds(),

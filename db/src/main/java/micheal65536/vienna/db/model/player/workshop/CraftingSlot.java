@@ -19,7 +19,7 @@ public final class CraftingSlot
 			@NotNull String sessionId,
 			@NotNull String recipeId,
 			long startTime,
-			@NotNull InputItem[] input,
+			@NotNull InputItem[][] input,
 			int totalRounds,
 			int collectedRounds,
 			boolean finishedEarly
