@@ -86,5 +86,11 @@ public class ProfileRouter extends Router
 				return Response.serverError();
 			}
 		});
+
+		// required for the language selection option in the client to work
+		this.addHandler(new Route.Builder(Request.Method.POST, "/player/profile/language").build(), request ->
+		{
+			return Response.create(200);
+		});
 	}
 }
