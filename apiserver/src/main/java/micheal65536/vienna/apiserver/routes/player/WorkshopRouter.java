@@ -353,10 +353,6 @@ public class WorkshopRouter extends Router
 							int requiredFuelHeat = recipe.heatRequired() * startRequest.multiplier - (smeltingSlot.burning != null ? smeltingSlot.burning.remainingHeat() : 0);
 							if (startRequest.fuel != null && startRequest.fuel.quantity > 0)
 							{
-								if (requiredFuelHeat <= 0)
-								{
-									return query;
-								}
 								int requiredFuelCount = 0;
 								while (requiredFuelHeat > 0)
 								{
@@ -367,25 +363,32 @@ public class WorkshopRouter extends Router
 								{
 									return query;
 								}
-								InputItem fuelItem;
-								if (startRequest.fuel.itemInstanceIds == null || startRequest.fuel.itemInstanceIds.length == 0)
+								if (requiredFuelCount > 0)
 								{
-									if (!inventory.takeItems(startRequest.fuel.itemId, startRequest.fuel.quantity))
+									InputItem fuelItem;
+									if (startRequest.fuel.itemInstanceIds == null || startRequest.fuel.itemInstanceIds.length == 0)
 									{
-										return query;
+										if (!inventory.takeItems(startRequest.fuel.itemId, requiredFuelCount))
+										{
+											return query;
+										}
+										fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, new NonStackableItemInstance[0]);
 									}
-									fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, new NonStackableItemInstance[0]);
+									else
+									{
+										NonStackableItemInstance[] instances = inventory.takeItems(startRequest.fuel.itemId, Arrays.copyOf(startRequest.fuel.itemInstanceIds, requiredFuelCount));
+										if (instances == null)
+										{
+											return query;
+										}
+										fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, instances);
+									}
+									fuel = new SmeltingSlot.Fuel(fuelItem, fuelCatalogItem.fuelInfo().burnTime(), fuelCatalogItem.fuelInfo().heatPerSecond());
 								}
 								else
 								{
-									NonStackableItemInstance[] instances = inventory.takeItems(startRequest.fuel.itemId, startRequest.fuel.itemInstanceIds);
-									if (instances == null)
-									{
-										return query;
-									}
-									fuelItem = new InputItem(startRequest.fuel.itemId, requiredFuelCount, instances);
+									fuel = null;
 								}
-								fuel = new SmeltingSlot.Fuel(fuelItem, fuelCatalogItem.fuelInfo().burnTime(), fuelCatalogItem.fuelInfo().heatPerSecond());
 							}
 							else
 							{
