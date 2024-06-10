@@ -39,6 +39,15 @@ public final class ActivityLog
 		this.entries.add(entry);
 	}
 
+	public void prune()
+	{
+		// it is widely known that the activity log is length limited but there is only ONE person who has stated how long it was limited to and apparently it is 40 entires
+		while (this.entries.size() > 40)
+		{
+			this.entries.removeFirst();
+		}
+	}
+
 	public static abstract class Entry
 	{
 		public final long timestamp;

@@ -16,6 +16,7 @@ public final class ActivityLogUtils
 		{
 			ActivityLog activityLog = (ActivityLog) results.get("activityLog").value();
 			activityLog.addEntry(entry);
+			activityLog.prune();
 			EarthDB.Query updateQuery = new EarthDB.Query(true);
 			updateQuery.update("activityLog", playerId, activityLog);
 			return updateQuery;
