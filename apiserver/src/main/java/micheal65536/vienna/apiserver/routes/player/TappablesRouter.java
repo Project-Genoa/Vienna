@@ -22,7 +22,7 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.RedeemedTappables;
 import micheal65536.vienna.eventbus.client.EventBusClient;
-import micheal65536.vienna.staticdata.Catalog;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -32,7 +32,7 @@ import java.util.stream.Stream;
 
 public class TappablesRouter extends Router
 {
-	public TappablesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull TappablesManager tappablesManager, @NotNull Catalog catalog)
+	public TappablesRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull TappablesManager tappablesManager, @NotNull StaticData staticData)
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/locations/$lat/$lon").build(), request ->
 		{
@@ -148,7 +148,7 @@ public class TappablesRouter extends Router
 
 							query.update("redeemedTappables", playerId, redeemedTappables);
 							query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.TappableEntry(request.timestamp, rewards.toDBRewardsModel())));
-							query.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+							query.then(rewards.toRedeemQuery(playerId, request.timestamp, staticData));
 							query.then(results2 -> new EarthDB.Query(false).extra("success", true).extra("rewards", rewards));
 
 							return query;

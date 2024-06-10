@@ -35,6 +35,7 @@ import micheal65536.vienna.db.model.player.workshop.InputItem;
 import micheal65536.vienna.db.model.player.workshop.SmeltingSlot;
 import micheal65536.vienna.db.model.player.workshop.SmeltingSlots;
 import micheal65536.vienna.staticdata.Catalog;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -44,11 +45,11 @@ import java.util.stream.IntStream;
 
 public class WorkshopRouter extends Router
 {
-	private final Catalog catalog;
+	private final StaticData staticData;
 
-	public WorkshopRouter(@NotNull EarthDB earthDB, @NotNull Catalog catalog)
+	public WorkshopRouter(@NotNull EarthDB earthDB, @NotNull StaticData staticData)
 	{
-		this.catalog = catalog;
+		this.staticData = staticData;
 
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/utilityBlocks").build(), request ->
 		{
@@ -161,7 +162,7 @@ public class WorkshopRouter extends Router
 			{
 				return Response.badRequest();
 			}
-			Catalog.RecipesCatalog.CraftingRecipe recipe = this.catalog.recipesCatalog.getCraftingRecipe(startRequest.recipeId);
+			Catalog.RecipesCatalog.CraftingRecipe recipe = this.staticData.catalog.recipesCatalog.getCraftingRecipe(startRequest.recipeId);
 			if (recipe == null)
 			{
 				return Response.badRequest();
@@ -332,8 +333,8 @@ public class WorkshopRouter extends Router
 			{
 				return Response.badRequest();
 			}
-			Catalog.RecipesCatalog.SmeltingRecipe recipe = this.catalog.recipesCatalog.getSmeltingRecipe(startRequest.recipeId);
-			Catalog.ItemsCatalog.Item fuelCatalogItem = startRequest.fuel != null ? this.catalog.itemsCatalog.getItem(startRequest.fuel.itemId) : null;
+			Catalog.RecipesCatalog.SmeltingRecipe recipe = this.staticData.catalog.recipesCatalog.getSmeltingRecipe(startRequest.recipeId);
+			Catalog.ItemsCatalog.Item fuelCatalogItem = startRequest.fuel != null ? this.staticData.catalog.itemsCatalog.getItem(startRequest.fuel.itemId) : null;
 			if (recipe == null)
 			{
 				return Response.badRequest();
@@ -485,7 +486,7 @@ public class WorkshopRouter extends Router
 							Rewards rewards = new Rewards();
 							if (craftingSlot.activeJob != null)
 							{
-								CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
+								CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.staticData.catalog);
 
 								int quantity = state.availableRounds() * state.output().count();
 								if (quantity > 0)
@@ -507,7 +508,7 @@ public class WorkshopRouter extends Router
 							return new EarthDB.Query(true)
 									.update("crafting", playerId, craftingSlots)
 									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.CraftingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())))
-									.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+									.then(rewards.toRedeemQuery(playerId, request.timestamp, staticData));
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -538,7 +539,7 @@ public class WorkshopRouter extends Router
 							Rewards rewards = new Rewards();
 							if (smeltingSlot.activeJob != null)
 							{
-								SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
+								SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.staticData.catalog);
 
 								int quantity = state.availableRounds() * state.output().count();
 								if (quantity > 0)
@@ -571,7 +572,7 @@ public class WorkshopRouter extends Router
 							return new EarthDB.Query(true)
 									.update("smelting", playerId, smeltingSlots)
 									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.SmeltingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())))
-									.then(rewards.toRedeemQuery(playerId, request.timestamp, catalog));
+									.then(rewards.toRedeemQuery(playerId, request.timestamp, staticData));
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(new MapBuilder<>().put("rewards", ((Rewards) results.getExtra("rewards")).toApiResponse()).getMap(), new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -611,7 +612,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
+							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.staticData.catalog);
 
 							for (InputItem inputItem : state.input())
 							{
@@ -629,7 +630,7 @@ public class WorkshopRouter extends Router
 							int outputQuantity = state.availableRounds() * state.output().count();
 							if (outputQuantity > 0)
 							{
-								Catalog.ItemsCatalog.Item item = this.catalog.itemsCatalog.getItem(state.output().id());
+								Catalog.ItemsCatalog.Item item = this.staticData.catalog.itemsCatalog.getItem(state.output().id());
 								if (item.stackable())
 								{
 									inventory.addItems(item.id(), outputQuantity);
@@ -685,7 +686,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
+							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.staticData.catalog);
 
 							if (state.input().instances().length > 0)
 							{
@@ -700,7 +701,7 @@ public class WorkshopRouter extends Router
 							int outputQuantity = state.availableRounds() * state.output().count();
 							if (outputQuantity > 0)
 							{
-								Catalog.ItemsCatalog.Item item = this.catalog.itemsCatalog.getItem(state.output().id());
+								Catalog.ItemsCatalog.Item item = this.staticData.catalog.itemsCatalog.getItem(state.output().id());
 								if (item.stackable())
 								{
 									inventory.addItems(item.id(), outputQuantity);
@@ -784,7 +785,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.catalog);
+							CraftingCalculator.State state = CraftingCalculator.calculateState(request.timestamp, craftingSlot.activeJob, this.staticData.catalog);
 							if (state.completed())
 							{
 								return query;
@@ -853,7 +854,7 @@ public class WorkshopRouter extends Router
 							{
 								return query;
 							}
-							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.catalog);
+							SmeltingCalculator.State state = SmeltingCalculator.calculateState(request.timestamp, smeltingSlot.activeJob, smeltingSlot.burning, this.staticData.catalog);
 							if (state.completed())
 							{
 								return query;
@@ -1070,7 +1071,7 @@ public class WorkshopRouter extends Router
 		CraftingSlot.ActiveJob activeJob = craftingSlotModel.activeJob;
 		if (activeJob != null)
 		{
-			CraftingCalculator.State state = CraftingCalculator.calculateState(currentTime, activeJob, this.catalog);
+			CraftingCalculator.State state = CraftingCalculator.calculateState(currentTime, activeJob, this.staticData.catalog);
 			return new micheal65536.vienna.apiserver.types.workshop.CraftingSlot(
 					activeJob.sessionId(),
 					activeJob.recipeId(),
@@ -1121,7 +1122,7 @@ public class WorkshopRouter extends Router
 		SmeltingSlot.ActiveJob activeJob = smeltingSlotModel.activeJob;
 		if (activeJob != null)
 		{
-			SmeltingCalculator.State state = SmeltingCalculator.calculateState(currentTime, activeJob, smeltingSlotModel.burning, this.catalog);
+			SmeltingCalculator.State state = SmeltingCalculator.calculateState(currentTime, activeJob, smeltingSlotModel.burning, this.staticData.catalog);
 
 			micheal65536.vienna.apiserver.types.workshop.SmeltingSlot.Fuel fuel;
 			if (state.remainingAddedFuel() != null && state.remainingAddedFuel().item().count() > 0)

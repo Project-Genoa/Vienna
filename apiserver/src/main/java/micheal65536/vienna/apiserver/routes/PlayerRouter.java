@@ -20,13 +20,13 @@ import micheal65536.vienna.apiserver.utils.TappablesManager;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.objectstore.client.ObjectStoreClient;
-import micheal65536.vienna.staticdata.Catalog;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.HashMap;
 
 public class PlayerRouter extends Router
 {
-	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull Catalog catalog)
+	public PlayerRouter(@NotNull EarthDB earthDB, @NotNull EventBusClient eventBusClient, @NotNull ObjectStoreClient objectStoreClient, @NotNull BuildplateInstancesManager buildplateInstancesManager, @NotNull StaticData staticData)
 	{
 		// TODO
 		this.addHandler(new Route.Builder(Request.Method.GET, "/boosts").build(), request ->
@@ -36,13 +36,13 @@ public class PlayerRouter extends Router
 
 		TappablesManager tappablesManager = new TappablesManager(eventBusClient);
 
-		this.addSubRouter("/*", 0, new ProfileRouter(earthDB));
+		this.addSubRouter("/*", 0, new ProfileRouter(earthDB, staticData));
 		this.addSubRouter("/*", 0, new TokensRouter(earthDB));
-		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, catalog));
-		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, catalog));
+		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, staticData.catalog));
+		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, staticData));
 		this.addSubRouter("/*", 0, new JournalRouter(earthDB));
-		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, objectStoreClient, buildplateInstancesManager, tappablesManager, catalog));
-		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, tappablesManager, catalog));
+		this.addSubRouter("/*", 0, new BuildplatesRouter(earthDB, objectStoreClient, buildplateInstancesManager, tappablesManager, staticData.catalog));
+		this.addSubRouter("/*", 0, new TappablesRouter(earthDB, eventBusClient, tappablesManager, staticData));
 		this.addSubRouter("/*", 0, new ChallengesRouter(earthDB));
 	}
 }

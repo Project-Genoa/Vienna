@@ -12,6 +12,8 @@ import micheal65536.vienna.apiserver.utils.LevelUtils;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Profile;
+import micheal65536.vienna.staticdata.Levels;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.HashMap;
 import java.util.Locale;
@@ -19,7 +21,7 @@ import java.util.stream.IntStream;
 
 public class ProfileRouter extends Router
 {
-	public ProfileRouter(@NotNull EarthDB earthDB)
+	public ProfileRouter(@NotNull EarthDB earthDB, @NotNull StaticData staticData)
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/profile/$userId").build(), request ->
 		{
@@ -30,14 +32,14 @@ public class ProfileRouter extends Router
 						.get("profile", request.getParameter("userId").toLowerCase(Locale.ROOT), Profile.class)
 						.execute(earthDB)
 						.get("profile").value();
-				LevelUtils.Level[] levels = LevelUtils.getLevels();
+				Levels.Level[] levels = staticData.levels.levels;
 				int currentLevelExperience = profile.experience - (profile.level > 1 ? (profile.level - 2 < levels.length ? levels[profile.level - 2].experienceRequired() : levels[levels.length - 1].experienceRequired()) : 0);
 				int experienceRemaining = profile.level - 1 < levels.length ? levels[profile.level - 1].experienceRequired() - profile.experience : 0;
 				return Response.okFromJson(new EarthApiResponse<>(new micheal65536.vienna.apiserver.types.profile.Profile(
 						IntStream.range(0, levels.length).collect(HashMap<Integer, micheal65536.vienna.apiserver.types.profile.Profile.Level>::new, (hashMap, levelIndex) ->
 						{
-							LevelUtils.Level level = levels[levelIndex];
-							hashMap.put(levelIndex + 1, new micheal65536.vienna.apiserver.types.profile.Profile.Level(level.experienceRequired(), level.rewards().toApiResponse()));
+							Levels.Level level = levels[levelIndex];
+							hashMap.put(levelIndex + 1, new micheal65536.vienna.apiserver.types.profile.Profile.Level(level.experienceRequired(), LevelUtils.makeLevelRewards(level).toApiResponse()));
 						}, HashMap::putAll),
 						profile.experience,
 						profile.level,

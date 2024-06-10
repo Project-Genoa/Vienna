@@ -11,6 +11,7 @@ import micheal65536.vienna.db.model.player.Journal;
 import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
 import micheal65536.vienna.staticdata.Catalog;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -77,7 +78,7 @@ public final class Rewards
 	}
 
 	@NotNull
-	public EarthDB.Query toRedeemQuery(@NotNull String playerId, long currentTime, @NotNull Catalog catalog)
+	public EarthDB.Query toRedeemQuery(@NotNull String playerId, long currentTime, @NotNull StaticData staticData)
 	{
 		EarthDB.Query getQuery = new EarthDB.Query(true);
 		if (this.rubies > 0 || this.experiencePoints > 0)
@@ -131,7 +132,7 @@ public final class Rewards
 					int quantity = entry.getValue();
 					if (quantity > 0)
 					{
-						Catalog.ItemsCatalog.Item item = catalog.itemsCatalog.getItem(id);
+						Catalog.ItemsCatalog.Item item = staticData.catalog.itemsCatalog.getItem(id);
 						if (item.stackable())
 						{
 							inventory.addItems(id, quantity);
@@ -165,7 +166,7 @@ public final class Rewards
 
 			if (checkLevelUp)
 			{
-				updateQuery.then(LevelUtils.checkAndHandlePlayerLevelUp(playerId, currentTime, catalog));
+				updateQuery.then(LevelUtils.checkAndHandlePlayerLevelUp(playerId, currentTime, staticData));
 			}
 
 			return updateQuery;

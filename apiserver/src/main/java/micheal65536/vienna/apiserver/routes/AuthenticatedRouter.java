@@ -46,7 +46,7 @@ public class AuthenticatedRouter extends Router
 				authFilter
 		);
 
-		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, staticData.catalog));
+		this.addSubRouter("/*", 0, new PlayerRouter(earthDB, eventBusClient, objectStoreClient, buildplateInstancesManager, staticData));
 		this.addSubRouter("/*", 0, new CatalogRouter(staticData.catalog));
 		this.addSubRouter("/*", 0, new EnvironmentSettingsRouter());
 	}
