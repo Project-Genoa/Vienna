@@ -62,7 +62,7 @@ public class ChallengesRouter extends Router
 									1,
 									new String[0],
 									"And",
-									new Rewards(null, null, null, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new String[]{"230f5996-04b2-4f0e-83e5-4056c7f1d946"}, new Rewards.UtilityBlock[0]),
+									new Rewards(null, null, null, new Rewards.Item[0], new String[0], new Rewards.Challenge[0], new String[]{"230f5996-04b2-4f0e-83e5-4056c7f1d946"}, new Rewards.UtilityBlock[0]),
 									new Object()
 							))
 							.put("00000000-0000-0000-0000-000000000002", new Challenge(
@@ -82,7 +82,7 @@ public class ChallengesRouter extends Router
 									1,
 									new String[0],
 									"And",
-									new Rewards(null, null, null, new Rewards.Item[0], new Rewards.Buildplate[0], new Rewards.Challenge[0], new String[]{"d7725840-4376-44fc-9220-585f45775371"}, new Rewards.UtilityBlock[0]),
+									new Rewards(null, null, null, new Rewards.Item[0], new String[0], new Rewards.Challenge[0], new String[]{"d7725840-4376-44fc-9220-585f45775371"}, new Rewards.UtilityBlock[0]),
 									new Object()
 							))
 							.getMap()

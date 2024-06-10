@@ -9,7 +9,7 @@ public record Rewards(
 		@Nullable Integer experiencePoints,
 		@Nullable Integer level,
 		@NotNull Item[] inventory,
-		@NotNull Buildplate[] buildplates,
+		@NotNull String[] buildplates,
 		@NotNull Challenge[] challenges,
 		@NotNull String[] personaItems,
 		@NotNull UtilityBlock[] utilityBlocks
@@ -18,12 +18,6 @@ public record Rewards(
 	public record Item(
 			@NotNull String id,
 			int amount
-	)
-	{
-	}
-
-	public record Buildplate(
-			@NotNull String id
 	)
 	{
 	}
