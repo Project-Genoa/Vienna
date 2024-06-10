@@ -7,6 +7,8 @@ import com.google.gson.JsonParseException;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.db.model.common.Rewards;
+
 import java.util.HashMap;
 
 public final class Tokens
@@ -93,11 +95,13 @@ public final class Tokens
 	public static final class LevelUpToken extends Token
 	{
 		public final int level;
+		public final Rewards rewards;
 
-		public LevelUpToken(int level)
+		public LevelUpToken(int level, @NotNull Rewards rewards)
 		{
 			super(Type.LEVEL_UP);
 			this.level = level;
+			this.rewards = rewards;
 		}
 	}
 

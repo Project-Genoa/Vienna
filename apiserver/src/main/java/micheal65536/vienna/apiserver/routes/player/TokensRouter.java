@@ -106,7 +106,7 @@ public class TokensRouter extends Router
 
 		Rewards rewards = switch (token.type)
 		{
-			case LEVEL_UP -> new Rewards().setLevel(((Tokens.LevelUpToken) token).level);
+			case LEVEL_UP -> Rewards.fromDBRewardsModel(((Tokens.LevelUpToken) token).rewards).setLevel(((Tokens.LevelUpToken) token).level);
 			default -> new Rewards();
 		};
 
