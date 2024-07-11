@@ -18,10 +18,13 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
+import java.util.Properties;
 import java.util.function.Function;
 
 public final class EarthDB implements AutoCloseable
 {
+	private static final int TRANSACTION_TIMEOUT = 60000;
+
 	@NotNull
 	public static EarthDB open(@NotNull String connectionString) throws DatabaseException
 	{
@@ -29,13 +32,16 @@ public final class EarthDB implements AutoCloseable
 	}
 
 	private final String connectionString;
+	private final Properties properties;
 	private final LinkedHashSet<Transaction> transactions = new LinkedHashSet<>();
 
 	private EarthDB(@NotNull String connectionString) throws DatabaseException
 	{
 		this.connectionString = connectionString;
+		this.properties = new Properties();
+		this.properties.put("busy_timeout", Integer.toString(TRANSACTION_TIMEOUT));
 
-		try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + this.connectionString))
+		try (Connection connection = DriverManager.getConnection("jdbc:sqlite:" + this.connectionString, this.properties))
 		{
 			Statement statement = connection.createStatement();
 			statement.execute("CREATE TABLE IF NOT EXISTS objects (type STRING NOT NULL, id STRING NOT NULL, value STRING NOT NULL, version INTEGER NOT NULL, PRIMARY KEY (type, id))");
@@ -73,7 +79,7 @@ public final class EarthDB implements AutoCloseable
 		{
 			try
 			{
-				Connection connection = DriverManager.getConnection("jdbc:sqlite:" + this.connectionString);
+				Connection connection = DriverManager.getConnection("jdbc:sqlite:" + this.connectionString, this.properties);
 				Transaction transaction = new Transaction(connection, write);
 				this.transactions.add(transaction);
 				return transaction;
