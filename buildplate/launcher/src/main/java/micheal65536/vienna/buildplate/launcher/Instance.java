@@ -954,7 +954,8 @@ public class Instance
 							"-serverPort", Integer.toString(this.serverInternalPort),
 							"-connectorPluginJar", this.connectorPluginJar.getAbsolutePath(),
 							"-connectorPluginClass", "micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin",
-							"-connectorPluginArg", this.connectorPluginArgString)
+							"-connectorPluginArg", this.connectorPluginArgString,
+							"-useUUIDAsUsername")
 					.directory(this.bridgeWorkDir)
 					.redirectOutput(ProcessBuilder.Redirect.PIPE)
 					.redirectErrorStream(true)
