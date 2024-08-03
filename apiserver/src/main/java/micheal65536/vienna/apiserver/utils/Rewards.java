@@ -142,7 +142,7 @@ public final class Rewards
 							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
 						journal.touchItem(id, currentTime);
-						if (journal.getItem(id).amountCollected() == 0)
+						if (item.journalEntry() != null && journal.getItem(id).amountCollected() == 0)
 						{
 							updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.JournalItemUnlockedEntry(currentTime, id)));
 							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
