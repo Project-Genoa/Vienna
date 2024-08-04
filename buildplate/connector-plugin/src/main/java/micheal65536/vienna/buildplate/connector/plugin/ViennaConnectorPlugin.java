@@ -15,12 +15,10 @@ import micheal65536.vienna.buildplate.connector.model.PlayerConnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerConnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedResponse;
-import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.Publisher;
 import micheal65536.vienna.eventbus.client.RequestSender;
 
-import java.util.Base64;
 import java.util.HashMap;
 
 public final class ViennaConnectorPlugin implements ConnectorPlugin
@@ -30,7 +28,6 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	private Publisher publisher;
 	private RequestSender requestSender;
 
-	private boolean saveEnabled;
 	private InventoryType inventoryType;
 
 	private final HashMap<String, PlayerInventory> playerInventories = new HashMap<>();
@@ -60,7 +57,6 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 		this.publisher = this.eventBusClient.addPublisher();
 		this.requestSender = this.eventBusClient.addRequestSender();
 
-		this.saveEnabled = connectorPluginArg.saveEnabled();
 		this.inventoryType = connectorPluginArg.inventoryType();
 	}
 
@@ -72,27 +68,6 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 		this.publisher.flush();
 		this.publisher.close();
 		this.eventBusClient.close();
-	}
-
-	@Override
-	public void onServerReady() throws ConnectorPluginException
-	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "started", null);
-	}
-
-	@Override
-	public void onServerStopping() throws ConnectorPluginException
-	{
-		EventBusHelper.publishJson(this.publisher, this.queueName, "stopping", null);
-	}
-
-	@Override
-	public void onWorldSaved(byte[] data) throws ConnectorPluginException
-	{
-		if (this.saveEnabled)
-		{
-			EventBusHelper.publishJson(this.publisher, this.queueName, "saved", new WorldSavedMessage(Base64.getEncoder().encodeToString(data)));
-		}
 	}
 
 	@Override

@@ -93,6 +93,7 @@ public class Instance
 	private final String fabricJarName;
 	private final File connectorPluginJar;
 	private final File baseDir;
+	private final String eventBusAddress;
 	private final String eventBusQueueName;
 	private final String connectorPluginArgString;
 
@@ -139,11 +140,11 @@ public class Instance
 		this.fabricJarName = fabricJarName;
 		this.connectorPluginJar = connectorPluginJar;
 		this.baseDir = baseDir;
+		this.eventBusAddress = eventBusConnectionString;
 		this.eventBusQueueName = "buildplate_" + this.instanceId;
 		this.connectorPluginArgString = new Gson().newBuilder().serializeNulls().create().toJson(new ConnectorPluginArg(
-				eventBusConnectionString,
+				this.eventBusAddress,
 				this.eventBusQueueName,
-				this.saveEnabled,
 				this.inventoryType
 		), ConnectorPluginArg.class);
 
@@ -353,18 +354,25 @@ public class Instance
 			}
 			case "saved" ->
 			{
-				WorldSavedMessage worldSavedMessage = this.readJson(event.data, WorldSavedMessage.class);
-				if (worldSavedMessage != null)
+				if (this.saveEnabled)
 				{
-					if (this.hostPlayerConnected)
+					WorldSavedMessage worldSavedMessage = this.readJson(event.data, WorldSavedMessage.class);
+					if (worldSavedMessage != null)
 					{
-						this.logger.info("Saving snapshot");
-						this.sendEventBusRequest("saved", worldSavedMessage, null);
+						if (this.hostPlayerConnected)
+						{
+							this.logger.info("Saving snapshot");
+							this.sendEventBusRequest("saved", worldSavedMessage, null);
+						}
+						else
+						{
+							this.logger.info("Not saving snapshot because host player never connected");
+						}
 					}
-					else
-					{
-						this.logger.info("Not saving snapshot because host player never connected");
-					}
+				}
+				else
+				{
+					this.logger.info("Ignoring save data because saving is disabled");
 				}
 			}
 			case "inventoryAdd" ->
@@ -611,7 +619,7 @@ public class Instance
 		}
 		if (!copyServerFile(new File(this.serverTemplateDir, "mods"), new File(workDir, "mods"), true))
 		{
-			this.logger.error("Mods directory was not present in server template directory, the buildplate server instance will not function correctly without the Fountain Fabric mod installed");
+			this.logger.error("Mods directory was not present in server template directory, the buildplate server instance will not function correctly without the Fountain and Vienna Fabric mods installed");
 		}
 
 		Files.writeString(new File(workDir, "eula.txt").toPath(), "eula=true", StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
@@ -622,10 +630,9 @@ public class Instance
 				.append("sync-chunk-writes=false\n")
 				.append("spawn-protection=0\n")
 				.append("server-port=%d\n".formatted(this.serverInternalPort))
-				.append("fountain-connector-plugin-jar=%s\n".formatted(this.connectorPluginJar.getAbsolutePath().replace("\\", "\\\\")))
-				.append("fountain-connector-plugin-class=micheal65536.vienna.buildplate.connector.plugin.ViennaConnectorPlugin\n")
-				.append("fountain-connector-plugin-arg=%s\n".formatted(this.connectorPluginArgString))
 				.append("gamemode=%s\n".formatted(this.survival ? "survival" : "creative"))
+				.append("vienna-event-bus-address=%s\n".formatted(this.eventBusAddress))
+				.append("vienna-event-bus-queue-name=%s\n".formatted(this.eventBusQueueName))
 				.toString();
 		Files.writeString(new File(workDir, "server.properties").toPath(), serverProperties, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
 
