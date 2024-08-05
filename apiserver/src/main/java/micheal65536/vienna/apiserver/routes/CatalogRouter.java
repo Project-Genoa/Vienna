@@ -135,6 +135,20 @@ public class CatalogRouter extends Router
 				mobDamage = 0;
 			}
 
+			ItemsCatalog.Item.ItemData.BlockMetadata blockMetadata;
+			if (item.blockInfo() != null)
+			{
+				blockMetadata = new ItemsCatalog.Item.ItemData.BlockMetadata(item.blockInfo().breakingHealth(), item.blockInfo().efficiencyCategory());
+			}
+			else if (item.mobInfo() != null)
+			{
+				blockMetadata = new ItemsCatalog.Item.ItemData.BlockMetadata(item.mobInfo().health(), "instant");
+			}
+			else
+			{
+				blockMetadata = null;
+			}
+
 			BoostMetadata boostMetadata;
 			if (item.boostInfo() != null)
 			{
@@ -288,7 +302,7 @@ public class CatalogRouter extends Router
 							mobDamage,
 							blockDamage,
 							health,
-							item.blockInfo() != null ? new ItemsCatalog.Item.ItemData.BlockMetadata(item.blockInfo().breakingHealth(), item.blockInfo().efficiencyCategory()) : null,
+							blockMetadata,
 							new ItemsCatalog.Item.ItemData.ItemMetadata(
 									useTypeString,
 									alternativeUseTypeString,
