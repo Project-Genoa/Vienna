@@ -37,7 +37,7 @@ public class PlayerRouter extends Router
 		TappablesManager tappablesManager = new TappablesManager(eventBusClient);
 
 		this.addSubRouter("/*", 0, new ProfileRouter(earthDB, staticData));
-		this.addSubRouter("/*", 0, new TokensRouter(earthDB));
+		this.addSubRouter("/*", 0, new TokensRouter(earthDB, staticData));
 		this.addSubRouter("/*", 0, new InventoryRouter(earthDB, staticData.catalog));
 		this.addSubRouter("/*", 0, new WorkshopRouter(earthDB, staticData));
 		this.addSubRouter("/*", 0, new JournalRouter(earthDB));

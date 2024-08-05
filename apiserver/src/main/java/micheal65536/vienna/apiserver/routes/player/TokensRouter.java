@@ -11,16 +11,18 @@ import micheal65536.vienna.apiserver.types.common.Token;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.apiserver.utils.Rewards;
+import micheal65536.vienna.apiserver.utils.TokenUtils;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Tokens;
+import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.Arrays;
 import java.util.HashMap;
 
 public class TokensRouter extends Router
 {
-	public TokensRouter(@NotNull EarthDB earthDB)
+	public TokensRouter(@NotNull EarthDB earthDB, @NotNull StaticData staticData)
 	{
 		this.addHandler(new Route.Builder(Request.Method.GET, "/player/tokens").build(), request ->
 		{
@@ -46,7 +48,6 @@ public class TokensRouter extends Router
 			}
 		});
 
-		// TODO: some token types might have actions to perform when they're redeemed?
 		this.addHandler(new Route.Builder(Request.Method.POST, "/player/tokens/$tokenId/redeem").build(), request ->
 		{
 			Tokens.Token token;
@@ -64,6 +65,7 @@ public class TokensRouter extends Router
 							{
 								return new EarthDB.Query(true)
 										.update("tokens", playerId, tokens)
+										.then(TokenUtils.doActionsOnRedeemedToken(removedToken, playerId, request.timestamp, staticData))
 										.extra("success", true)
 										.extra("token", removedToken);
 							}

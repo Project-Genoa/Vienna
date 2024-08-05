@@ -144,7 +144,6 @@ public final class Rewards
 						journal.touchItem(id, currentTime);
 						if (item.journalEntry() != null && journal.getItem(id).amountCollected() == 0)
 						{
-							updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.JournalItemUnlockedEntry(currentTime, id)));
 							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
 						}
 						journal.addCollectedItem(id, quantity);

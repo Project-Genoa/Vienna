@@ -648,7 +648,6 @@ public final class BuildplateInstanceRequestHandler
 								.update("journal", playerDisconnectedRequest.playerId(), journal);
 						for (String itemId : unlockedJournalItems)
 						{
-							query.then(ActivityLogUtils.addEntry(playerDisconnectedRequest.playerId(), new ActivityLog.JournalItemUnlockedEntry(timestamp, itemId)));
 							query.then(TokenUtils.addToken(playerDisconnectedRequest.playerId(), new Tokens.JournalItemUnlockedToken(itemId)));
 						}
 						return query;
@@ -724,7 +723,6 @@ public final class BuildplateInstanceRequestHandler
 							.update("journal", inventoryAddItemMessage.playerId(), journal);
 					if (journalItemUnlocked)
 					{
-						query.then(ActivityLogUtils.addEntry(inventoryAddItemMessage.playerId(), new ActivityLog.JournalItemUnlockedEntry(timestamp, inventoryAddItemMessage.itemId())));
 						query.then(TokenUtils.addToken(inventoryAddItemMessage.playerId(), new Tokens.JournalItemUnlockedToken(inventoryAddItemMessage.itemId())));
 					}
 					return query;
