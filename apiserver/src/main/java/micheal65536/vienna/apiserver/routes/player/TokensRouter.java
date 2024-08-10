@@ -66,8 +66,11 @@ public class TokensRouter extends Router
 								return new EarthDB.Query(true)
 										.update("tokens", playerId, tokens)
 										.then(TokenUtils.doActionsOnRedeemedToken(removedToken, playerId, request.timestamp, staticData))
-										.extra("success", true)
-										.extra("token", removedToken);
+										.then(
+												new EarthDB.Query(false)
+														.extra("success", true)
+														.extra("token", removedToken)
+										);
 							}
 							else
 							{
