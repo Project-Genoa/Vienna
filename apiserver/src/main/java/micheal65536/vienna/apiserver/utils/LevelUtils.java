@@ -26,8 +26,6 @@ public final class LevelUtils
 				changed = true;
 				profile.level++;
 				Rewards rewards = makeLevelRewards(staticData.levels.levels[profile.level - 2]);
-				updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.LevelUpEntry(currentTime, profile.level)));
-				updateQuery.then(rewards.toRedeemQuery(playerId, currentTime, staticData));
 				updateQuery.then(TokenUtils.addToken(playerId, new Tokens.LevelUpToken(profile.level, rewards.toDBRewardsModel())));
 			}
 			if (changed)

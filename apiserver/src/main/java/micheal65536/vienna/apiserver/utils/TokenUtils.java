@@ -39,7 +39,17 @@ public final class TokenUtils
 		{
 			case LEVEL_UP ->
 			{
-				// empty
+				Tokens.LevelUpToken levelUpToken = (Tokens.LevelUpToken) token;
+				getQuery.then(results ->
+				{
+					EarthDB.Query updateQuery = new EarthDB.Query(true);
+
+					updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.LevelUpEntry(currentTime, levelUpToken.level)));
+
+					updateQuery.then(Rewards.fromDBRewardsModel(levelUpToken.rewards).toRedeemQuery(playerId, currentTime, staticData));
+
+					return updateQuery;
+				});
 			}
 			case JOURNAL_ITEM_UNLOCKED ->
 			{
