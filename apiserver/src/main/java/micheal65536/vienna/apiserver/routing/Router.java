@@ -173,9 +173,11 @@ public class Router
 	{
 		Request.Method method = switch (httpServletRequest.getMethod())
 		{
+			case "HEAD" -> Request.Method.HEAD;
 			case "GET" -> Request.Method.GET;
 			case "POST" -> Request.Method.POST;
 			case "PUT" -> Request.Method.PUT;
+			case "DELETE" -> Request.Method.DELETE;
 			default -> null;
 		};
 		if (method == null)

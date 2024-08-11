@@ -138,9 +138,11 @@ public final class Request
 
 	public enum Method
 	{
+		HEAD,
 		GET,
 		POST,
-		PUT
+		PUT,
+		DELETE
 	}
 
 	public static final class BadRequestException extends Exception

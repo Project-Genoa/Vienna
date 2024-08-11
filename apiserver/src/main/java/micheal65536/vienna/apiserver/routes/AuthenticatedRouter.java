@@ -34,6 +34,10 @@ public class AuthenticatedRouter extends Router
 			return null;
 		};
 		this.addFilter(
+				new Route.Builder(Request.Method.HEAD, "/*").addHeaderParameter("sessionId", "Session-Id").addHeaderParameter("authorization", "Authorization").build(),
+				authFilter
+		);
+		this.addFilter(
 				new Route.Builder(Request.Method.GET, "/*").addHeaderParameter("sessionId", "Session-Id").addHeaderParameter("authorization", "Authorization").build(),
 				authFilter
 		);
@@ -43,6 +47,10 @@ public class AuthenticatedRouter extends Router
 		);
 		this.addFilter(
 				new Route.Builder(Request.Method.PUT, "/*").addHeaderParameter("sessionId", "Session-Id").addHeaderParameter("authorization", "Authorization").build(),
+				authFilter
+		);
+		this.addFilter(
+				new Route.Builder(Request.Method.DELETE, "/*").addHeaderParameter("sessionId", "Session-Id").addHeaderParameter("authorization", "Authorization").build(),
 				authFilter
 		);
 
