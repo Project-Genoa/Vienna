@@ -11,7 +11,9 @@ import micheal65536.vienna.apiserver.types.catalog.JournalCatalog;
 import micheal65536.vienna.apiserver.types.catalog.NFCBoost;
 import micheal65536.vienna.apiserver.types.catalog.RecipesCatalog;
 import micheal65536.vienna.apiserver.types.common.BurnRate;
+import micheal65536.vienna.apiserver.types.common.Effect;
 import micheal65536.vienna.apiserver.types.common.Rarity;
+import micheal65536.vienna.apiserver.utils.BoostUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
@@ -183,55 +185,7 @@ public class CatalogRouter extends Router
 						item.boostInfo().duration() != null ? TimeFormatter.formatDuration(item.boostInfo().duration()) : null,
 						true,
 						item.boostInfo().level(),
-						Arrays.stream(item.boostInfo().effects()).map(effect ->
-						{
-							String effectTypeString = switch (effect.type())
-							{
-								case ADVENTURE_XP -> "ItemExperiencePoints";
-								case CRAFTING -> "CraftingSpeed";
-								case DEFENSE -> "PlayerDefense";
-								case EATING -> "FoodHealth";
-								case HEALING -> "Health";
-								case HEALTH -> "MaximumPlayerHealth";
-								case ITEM_XP -> "ItemExperiencePoints";
-								case MINING_SPEED -> "BlockDamage";
-								case RETENTION_BACKPACK -> "RetainBackpack";
-								case RETENTION_HOTBAR -> "RetainHotbar";
-								case RETENTION_XP -> "RetainExperiencePoints";
-								case SMELTING -> "SmeltingFuelIntensity";
-								case STRENGTH -> "AttackDamage";
-								case TAPPABLE_RADIUS -> "TappableInteractionRadius";
-							};
-
-							String activationString = switch (effect.activation())
-							{
-								case INSTANT -> "Instant";
-								case TIMED -> "Timed";
-								case TRIGGERED -> "Triggered";
-							};
-
-							return new BoostMetadata.Effect(
-									effectTypeString,
-									effect.activation() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Activation.TIMED ? TimeFormatter.formatDuration(effect.duration()) : null,
-									effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_BACKPACK || effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_HOTBAR || effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_XP ? null : effect.value(),
-									switch (effect.type())
-									{
-										case HEALING, TAPPABLE_RADIUS -> "Increment";
-										case ADVENTURE_XP, CRAFTING, DEFENSE, EATING, HEALTH, ITEM_XP, MINING_SPEED, SMELTING, STRENGTH -> "Percentage";
-										case RETENTION_BACKPACK, RETENTION_HOTBAR, RETENTION_XP -> null;
-									},
-									effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.CRAFTING || effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.SMELTING ? "UtilityBlock" : "Player",
-									effect.applicableItemIds(),
-									switch (effect.type())
-									{
-										case ITEM_XP -> new String[]{"Tappable"};
-										case ADVENTURE_XP -> new String[]{"Encounter"};
-										default -> new String[0];
-									},
-									activationString,
-									effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.EATING ? "Health" : null
-							);
-						}).toArray(BoostMetadata.Effect[]::new),
+						Arrays.stream(item.boostInfo().effects()).map(BoostUtils::boostEffectToApiResponse).toArray(Effect[]::new),
 						item.boostInfo().triggeredOnDeath() ? "Death" : null,
 						null
 				);
