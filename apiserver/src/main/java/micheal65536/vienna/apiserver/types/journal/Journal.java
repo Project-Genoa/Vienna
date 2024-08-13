@@ -33,7 +33,8 @@ public record Journal(
 			@SerializedName("TappableCollected") TAPPABLE,
 			@SerializedName("JournalContentCollected") JOURNAL_ITEM_UNLOCKED,
 			@SerializedName("CraftingJobCompleted") CRAFTING_COMPLETED,
-			@SerializedName("SmeltingJobCompleted") SMELTING_COMPLETED
+			@SerializedName("SmeltingJobCompleted") SMELTING_COMPLETED,
+			@SerializedName("BoostActivated") BOOST_ACTIVATED
 		}
 	}
 }

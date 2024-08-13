@@ -66,7 +66,8 @@ public final class ActivityLog
 			TAPPABLE,
 			JOURNAL_ITEM_UNLOCKED,
 			CRAFTING_COMPLETED,
-			SMELTING_COMPLETED
+			SMELTING_COMPLETED,
+			BOOST_ACTIVATED
 		}
 
 		public static class Deserializer implements JsonDeserializer<Entry>
@@ -90,6 +91,7 @@ public final class ActivityLog
 					case JOURNAL_ITEM_UNLOCKED -> JournalItemUnlockedEntry.class;
 					case CRAFTING_COMPLETED -> CraftingCompletedEntry.class;
 					case SMELTING_COMPLETED -> SmeltingCompletedEntry.class;
+					case BOOST_ACTIVATED -> BoostActivatedEntry.class;
 				});
 			}
 		}
@@ -151,6 +153,18 @@ public final class ActivityLog
 		{
 			super(timestamp, Type.SMELTING_COMPLETED);
 			this.rewards = rewards;
+		}
+	}
+
+	public static final class BoostActivatedEntry extends Entry
+	{
+		@NotNull
+		public final String itemId;
+
+		public BoostActivatedEntry(long timestamp, @NotNull String itemId)
+		{
+			super(timestamp, Type.BOOST_ACTIVATED);
+			this.itemId = itemId;
 		}
 	}
 }

@@ -69,9 +69,17 @@ public class JournalRouter extends Router
 			case JOURNAL_ITEM_UNLOCKED -> new Rewards().addItem(((ActivityLog.JournalItemUnlockedEntry) entry).itemId, 0);
 			case CRAFTING_COMPLETED -> Rewards.fromDBRewardsModel(((ActivityLog.CraftingCompletedEntry) entry).rewards);
 			case SMELTING_COMPLETED -> Rewards.fromDBRewardsModel(((ActivityLog.SmeltingCompletedEntry) entry).rewards);
+			case BOOST_ACTIVATED -> new Rewards();
 		};
 
 		HashMap<String, String> properties = new HashMap<>();
+		switch (entry.type)
+		{
+			case BOOST_ACTIVATED ->
+			{
+				properties.put("boostId", ((ActivityLog.BoostActivatedEntry) entry).itemId);
+			}
+		}
 
 		return new micheal65536.vienna.apiserver.types.journal.Journal.ActivityLogEntry(
 				micheal65536.vienna.apiserver.types.journal.Journal.ActivityLogEntry.Type.valueOf(entry.type.name()),

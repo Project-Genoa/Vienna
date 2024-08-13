@@ -8,11 +8,13 @@ import micheal65536.vienna.apiserver.routing.Response;
 import micheal65536.vienna.apiserver.routing.Router;
 import micheal65536.vienna.apiserver.routing.ServerErrorException;
 import micheal65536.vienna.apiserver.types.common.Effect;
+import micheal65536.vienna.apiserver.utils.ActivityLogUtils;
 import micheal65536.vienna.apiserver.utils.BoostUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
+import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.staticdata.Catalog;
@@ -124,7 +126,6 @@ public class BoostsRouter extends Router
 			return Response.okFromJson(new EarthApiResponse<>(boostsResponse), EarthApiResponse.class);
 		});
 
-		// TODO: activity log entry
 		this.addHandler(new Route.Builder(Request.Method.POST, "/boosts/potions/$itemId/activate").build(), request ->
 		{
 			String playerId = request.getContextData("playerId");
@@ -158,6 +159,7 @@ public class BoostsRouter extends Router
 
 							return new EarthDB.Query(true)
 									.update("inventory", playerId, inventory)
+									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.BoostActivatedEntry(request.timestamp, itemId)))
 									.then(BoostUtils.activatePotion(playerId, itemId, request.timestamp, catalog.itemsCatalog));
 						})
 						.execute(earthDB);
