@@ -1,9 +1,9 @@
 package micheal65536.vienna.apiserver.utils;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.apiserver.types.common.Effect;
-import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.staticdata.Catalog;
 
@@ -13,8 +13,8 @@ import java.util.UUID;
 
 public final class BoostUtils
 {
-	@NotNull
-	public static EarthDB.Query activatePotion(@NotNull String playerId, @NotNull String itemId, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
+	@Nullable
+	public static String activatePotion(@NotNull Boosts boosts, @NotNull String itemId, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
 	{
 		Catalog.ItemsCatalog.Item item = itemsCatalog.getItem(itemId);
 		if (item == null)
@@ -27,30 +27,39 @@ public final class BoostUtils
 			throw new IllegalArgumentException();
 		}
 
+		boosts.prune(currentTime);
+
 		String instanceId = UUID.randomUUID().toString();
 		long duration = boostInfo.duration() != null ? boostInfo.duration() : Arrays.stream(boostInfo.effects()).mapToLong(Catalog.ItemsCatalog.Item.BoostInfo.Effect::duration).max().orElse(0);
 
-		EarthDB.Query getQuery = new EarthDB.Query(true);
-		getQuery.get("boosts", playerId, Boosts.class);
-		getQuery.then(results ->
+		int newIndex = -1;
+		for (int index = 0; index < boosts.activeBoosts.length; index++)
 		{
-			Boosts boosts = (Boosts) results.get("boosts").value();
-			boosts.add(instanceId, itemId, currentTime, duration);
-			boosts.prune(currentTime);
-			EarthDB.Query updateQuery = new EarthDB.Query(true);
-			updateQuery.update("boosts", playerId, boosts);
-			updateQuery.extra("instanceId", instanceId);
-			return updateQuery;
-		});
-		return getQuery;
+			if (boosts.activeBoosts[index] == null)
+			{
+				newIndex = index;
+				break;
+			}
+		}
+		if (newIndex == -1)
+		{
+			return null;
+		}
+		boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(instanceId, itemId, currentTime, duration);
+
+		return instanceId;
 	}
 
 	@NotNull
 	public static Catalog.ItemsCatalog.Item.BoostInfo.Effect[] getActiveEffects(@NotNull Boosts boosts, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
 	{
 		LinkedList<Catalog.ItemsCatalog.Item.BoostInfo.Effect> effects = new LinkedList<>();
-		for (Boosts.ActiveBoost activeBoost : boosts.getAll())
+		for (Boosts.ActiveBoost activeBoost : boosts.activeBoosts)
 		{
+			if (activeBoost == null)
+			{
+				continue;
+			}
 			if (activeBoost.startTime() + activeBoost.duration() > currentTime)
 			{
 				continue;

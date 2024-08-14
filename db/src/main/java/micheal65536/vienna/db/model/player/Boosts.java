@@ -3,42 +3,34 @@ package micheal65536.vienna.db.model.player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
+import java.util.Arrays;
 
 public final class Boosts
 {
-	private final HashMap<String, ActiveBoost> activeBoosts = new HashMap<>();
+	@Nullable
+	public final ActiveBoost[] activeBoosts;
 
 	public Boosts()
 	{
-		// empty
-	}
-
-	@NotNull
-	public ActiveBoost[] getAll()
-	{
-		return this.activeBoosts.values().toArray(ActiveBoost[]::new);
+		this.activeBoosts = new ActiveBoost[5];
 	}
 
 	@Nullable
 	public ActiveBoost get(@NotNull String instanceId)
 	{
-		return this.activeBoosts.getOrDefault(instanceId, null);
-	}
-
-	public void add(@NotNull String instanceId, @NotNull String itemId, long startTime, long duration)
-	{
-		this.activeBoosts.put(instanceId, new ActiveBoost(instanceId, itemId, startTime, duration));
-	}
-
-	public void remove(@NotNull String instanceId)
-	{
-		this.activeBoosts.remove(instanceId);
+		return Arrays.stream(this.activeBoosts).filter(activeBoost -> activeBoost != null && activeBoost.instanceId.equals(instanceId)).findFirst().orElse(null);
 	}
 
 	public void prune(long currentTime)
 	{
-		this.activeBoosts.entrySet().removeIf(entry -> entry.getValue().startTime + entry.getValue().duration < currentTime);
+		for (int index = 0; index < this.activeBoosts.length; index++)
+		{
+			ActiveBoost activeBoost = this.activeBoosts[index];
+			if (activeBoost != null && activeBoost.startTime + activeBoost.duration < currentTime)
+			{
+				this.activeBoosts[index] = null;
+			}
+		}
 	}
 
 	public record ActiveBoost(

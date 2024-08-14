@@ -19,8 +19,6 @@ import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.staticdata.Catalog;
 
-import java.util.Arrays;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 
@@ -46,26 +44,27 @@ public class BoostsRouter extends Router
 
 			boosts.prune(request.timestamp);
 
-			Boosts.ActiveBoost[] activeBoosts = boosts.getAll();
-			Arrays.sort(activeBoosts, Comparator.comparingLong(Boosts.ActiveBoost::startTime));
-
-			micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[] potions = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[5];
-			for (int index = 0; index < potions.length && index < activeBoosts.length; index++)
-			{
-				Boosts.ActiveBoost activeBoost = activeBoosts[index];
-				potions[index] = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion(true, activeBoost.itemId(), activeBoost.instanceId(), TimeFormatter.formatTime(activeBoost.startTime() + activeBoost.duration()));
-			}
-
-			long expiry = Long.MAX_VALUE;
+			micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[] potions = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[boosts.activeBoosts.length];
 			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect> activeEffects = new LinkedList<>();
 			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost> triggeredOnDeathBoosts = new LinkedList<>();
-			for (Boosts.ActiveBoost activeBoost : activeBoosts)
+			long expiry = Long.MAX_VALUE;
+			boolean hasActiveBoost = false;
+			for (int index = 0; index < boosts.activeBoosts.length; index++)
 			{
+				Boosts.ActiveBoost activeBoost = boosts.activeBoosts[index];
+				if (activeBoost == null)
+				{
+					continue;
+				}
+				hasActiveBoost = true;
+
 				long boostExpiry = activeBoost.startTime() + activeBoost.duration();
 				if (boostExpiry < expiry)
 				{
 					expiry = boostExpiry;
 				}
+
+				potions[index] = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion(true, activeBoost.itemId(), activeBoost.instanceId(), TimeFormatter.formatTime(boostExpiry));
 
 				Catalog.ItemsCatalog.Item item = catalog.itemsCatalog.getItem(activeBoost.itemId());
 				if (item == null || item.boostInfo() == null)
@@ -82,14 +81,14 @@ public class BoostsRouter extends Router
 							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoost.itemId(), effect.activation());
 							continue;
 						}
+
 						long effectExpiry = activeBoost.startTime() + effect.duration();
-
-						activeEffects.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect(BoostUtils.boostEffectToApiResponse(effect), TimeFormatter.formatTime(effectExpiry)));
-
 						if (effectExpiry < expiry)
 						{
 							expiry = effectExpiry;
 						}
+
+						activeEffects.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect(BoostUtils.boostEffectToApiResponse(effect), TimeFormatter.formatTime(effectExpiry)));
 					}
 				}
 				else
@@ -102,6 +101,7 @@ public class BoostsRouter extends Router
 							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoost.itemId(), effect.activation());
 							continue;
 						}
+
 						effects.add(BoostUtils.boostEffectToApiResponse(effect));
 					}
 					triggeredOnDeathBoosts.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost(true, activeBoost.instanceId(), effects.toArray(Effect[]::new), TimeFormatter.formatTime(boostExpiry)));
@@ -121,7 +121,7 @@ public class BoostsRouter extends Router
 					scenarioBoosts,
 					new micheal65536.vienna.apiserver.types.boosts.Boosts.StatusEffects(null, null, null, null, null, null, null, null, null, null),    // TODO
 					new HashMap<>(),
-					activeBoosts.length > 0 ? TimeFormatter.formatTime(expiry) : null
+					hasActiveBoost ? TimeFormatter.formatTime(expiry) : null
 			);
 			return Response.okFromJson(new EarthApiResponse<>(boostsResponse), EarthApiResponse.class);
 		});
@@ -146,21 +146,21 @@ public class BoostsRouter extends Router
 						{
 							Inventory inventory = (Inventory) results1.get("inventory").value();
 							Boosts boosts = (Boosts) results1.get("boosts").value();
-							boosts.prune(request.timestamp);
 
 							if (!inventory.takeItems(itemId, 1))
 							{
 								return new EarthDB.Query(false);
 							}
-							if (boosts.getAll().length >= 5)
+
+							if (BoostUtils.activatePotion(boosts, itemId, request.timestamp, catalog.itemsCatalog) == null)
 							{
 								return new EarthDB.Query(false);
 							}
 
 							return new EarthDB.Query(true)
 									.update("inventory", playerId, inventory)
-									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.BoostActivatedEntry(request.timestamp, itemId)))
-									.then(BoostUtils.activatePotion(playerId, itemId, request.timestamp, catalog.itemsCatalog));
+									.update("boosts", playerId, boosts)
+									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.BoostActivatedEntry(request.timestamp, itemId)));
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(null, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -197,7 +197,13 @@ public class BoostsRouter extends Router
 								return new EarthDB.Query(false);
 							}
 
-							boosts.remove(instanceId);
+							for (int index = 0; index < boosts.activeBoosts.length; index++)
+							{
+								if (boosts.activeBoosts[index] != null && boosts.activeBoosts[index].instanceId().equals(instanceId))
+								{
+									boosts.activeBoosts[index] = null;
+								}
+							}
 
 							return new EarthDB.Query(true)
 									.update("boosts", playerId, boosts);
