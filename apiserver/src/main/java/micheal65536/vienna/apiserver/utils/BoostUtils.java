@@ -60,7 +60,7 @@ public final class BoostUtils
 			{
 				continue;
 			}
-			if (activeBoost.startTime() + activeBoost.duration() > currentTime)
+			if (activeBoost.startTime() + activeBoost.duration() < currentTime)
 			{
 				continue;
 			}
@@ -74,7 +74,7 @@ public final class BoostUtils
 					{
 						case INSTANT -> false;
 						case TRIGGERED -> true;
-						case TIMED -> activeBoost.startTime() + effect.duration() <= currentTime;
+						case TIMED -> activeBoost.startTime() + effect.duration() >= currentTime;
 					})
 					.forEach(effects::add);
 		}
