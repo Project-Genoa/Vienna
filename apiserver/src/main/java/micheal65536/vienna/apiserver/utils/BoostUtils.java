@@ -81,6 +81,70 @@ public final class BoostUtils
 		return effects.toArray(Catalog.ItemsCatalog.Item.BoostInfo.Effect[]::new);
 	}
 
+	public record StatModiferValues(
+			int maxPlayerHealthMultiplier,
+			int attackMultiplier,
+			int defenseMultiplier,
+			int foodMultiplier,
+			int miningSpeedMultiplier,
+			int craftingSpeedMultiplier,
+			int smeltingSpeedMultiplier,
+			int tappableInteractionRadiusExtraMeters,
+			boolean keepHotbar,
+			boolean keepInventory,
+			boolean keepXp
+	)
+	{
+	}
+
+	@NotNull
+	public static StatModiferValues getActiveStatModifiers(@NotNull Boosts boosts, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
+	{
+		int maxPlayerHealth = 0;
+		int attackMultiplier = 0;
+		int defenseMultiplier = 0;
+		int foodMultiplier = 0;
+		int miningSpeedMultiplier = 0;
+		int craftingMultiplier = 0;
+		int smeltingMultiplier = 0;
+		int tappableInteractionRadius = 0;
+		boolean keepHotbar = false;
+		boolean keepInventory = false;
+		boolean keepXp = false;
+
+		for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : BoostUtils.getActiveEffects(boosts, currentTime, itemsCatalog))
+		{
+			switch (effect.type())
+			{
+				case HEALTH -> maxPlayerHealth += effect.value();
+				case STRENGTH -> attackMultiplier += effect.value();
+				case DEFENSE -> defenseMultiplier += effect.value();
+				case EATING -> foodMultiplier += effect.value();
+				case MINING_SPEED -> miningSpeedMultiplier += effect.value();
+				case CRAFTING -> craftingMultiplier += effect.value();
+				case SMELTING -> smeltingMultiplier += effect.value();
+				case TAPPABLE_RADIUS -> tappableInteractionRadius += effect.value();
+				case RETENTION_HOTBAR -> keepHotbar = true;
+				case RETENTION_BACKPACK -> keepInventory = true;
+				case RETENTION_XP -> keepXp = true;
+			}
+		}
+
+		return new StatModiferValues(
+				maxPlayerHealth,
+				attackMultiplier,
+				defenseMultiplier,
+				foodMultiplier,
+				miningSpeedMultiplier,
+				craftingMultiplier,
+				smeltingMultiplier,
+				tappableInteractionRadius,
+				keepHotbar,
+				keepInventory,
+				keepXp
+		);
+	}
+
 	@NotNull
 	public static Effect boostEffectToApiResponse(@NotNull Catalog.ItemsCatalog.Item.BoostInfo.Effect effect)
 	{

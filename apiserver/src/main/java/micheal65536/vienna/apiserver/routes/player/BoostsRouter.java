@@ -114,12 +114,25 @@ public class BoostsRouter extends Router
 				scenarioBoosts.put("death", triggeredOnDeathBoosts.toArray(micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost[]::new));
 			}
 
+			BoostUtils.StatModiferValues statModiferValues = BoostUtils.getActiveStatModifiers(boosts, request.timestamp, catalog.itemsCatalog);
+
 			micheal65536.vienna.apiserver.types.boosts.Boosts boostsResponse = new micheal65536.vienna.apiserver.types.boosts.Boosts(
 					potions,
 					new micheal65536.vienna.apiserver.types.boosts.Boosts.MiniFig[5],
 					activeEffects.toArray(micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect[]::new),
 					scenarioBoosts,
-					new micheal65536.vienna.apiserver.types.boosts.Boosts.StatusEffects(null, null, null, null, null, null, null, null, null, null),    // TODO
+					new micheal65536.vienna.apiserver.types.boosts.Boosts.StatusEffects(
+							statModiferValues.tappableInteractionRadiusExtraMeters() > 0 ? statModiferValues.tappableInteractionRadiusExtraMeters() + 70 : null,
+							null,
+							null,
+							statModiferValues.attackMultiplier() > 0 ? statModiferValues.attackMultiplier() + 100 : null,
+							statModiferValues.defenseMultiplier() > 0 ? statModiferValues.defenseMultiplier() + 100 : null,
+							statModiferValues.miningSpeedMultiplier() > 0 ? statModiferValues.miningSpeedMultiplier() + 100 : null,
+							statModiferValues.maxPlayerHealthMultiplier() > 0 ? (20 * statModiferValues.maxPlayerHealthMultiplier()) / 100 + 20 : 20,
+							statModiferValues.craftingSpeedMultiplier() > 0 ? statModiferValues.craftingSpeedMultiplier() / 100 + 1 : null,
+							statModiferValues.smeltingSpeedMultiplier() > 0 ? statModiferValues.smeltingSpeedMultiplier() / 100 + 1 : null,
+							statModiferValues.foodMultiplier() > 0 ? statModiferValues.foodMultiplier() + 100 : null
+					),
 					new HashMap<>(),
 					hasActiveBoost ? TimeFormatter.formatTime(expiry) : null
 			);
