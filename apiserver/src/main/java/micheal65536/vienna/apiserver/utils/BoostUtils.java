@@ -145,6 +145,11 @@ public final class BoostUtils
 		);
 	}
 
+	public static int getMaxPlayerHealth(@NotNull Boosts boosts, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
+	{
+		return 20 + (20 * BoostUtils.getActiveStatModifiers(boosts, currentTime, itemsCatalog).maxPlayerHealthMultiplier()) / 100;
+	}
+
 	@NotNull
 	public static Effect boostEffectToApiResponse(@NotNull Catalog.ItemsCatalog.Item.BoostInfo.Effect effect)
 	{
