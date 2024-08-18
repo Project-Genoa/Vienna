@@ -5,7 +5,6 @@ import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
-import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
 import micheal65536.vienna.db.model.player.Profile;
@@ -141,12 +140,13 @@ public final class Rewards
 						{
 							inventory.addItems(id, IntStream.range(0, quantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
 						}
-						journal.touchItem(id, currentTime);
-						if (item.journalEntry() != null && journal.getItem(id).amountCollected() == 0)
+						if (journal.addCollectedItem(id, currentTime, quantity) == 0)
 						{
-							updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
+							if (item.journalEntry() != null)
+							{
+								updateQuery.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(id)));
+							}
 						}
-						journal.addCollectedItem(id, quantity);
 					}
 				}
 				updateQuery.update("inventory", playerId, inventory);

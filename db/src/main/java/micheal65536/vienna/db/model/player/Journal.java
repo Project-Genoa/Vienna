@@ -35,20 +35,7 @@ public final class Journal
 		return this.items.getOrDefault(uuid, null);
 	}
 
-	public void touchItem(@NotNull String uuid, long timestamp)
-	{
-		ItemJournalEntry itemJournalEntry = this.items.getOrDefault(uuid, null);
-		if (itemJournalEntry == null)
-		{
-			this.items.put(uuid, new ItemJournalEntry(timestamp, timestamp, 0));
-		}
-		else
-		{
-			this.items.put(uuid, new ItemJournalEntry(itemJournalEntry.firstSeen, timestamp, itemJournalEntry.amountCollected));
-		}
-	}
-
-	public void addCollectedItem(@NotNull String uuid, int count)
+	public int addCollectedItem(@NotNull String uuid, long timestamp, int count)
 	{
 		if (count < 0)
 		{
@@ -57,9 +44,14 @@ public final class Journal
 		ItemJournalEntry itemJournalEntry = this.items.getOrDefault(uuid, null);
 		if (itemJournalEntry == null)
 		{
-			throw new IllegalStateException("Item does not exist in journal, make sure to touch it or otherwise verify that it exists before calling addCollectedItem");
+			this.items.put(uuid, new ItemJournalEntry(timestamp, timestamp, count));
+			return 0;
 		}
-		this.items.put(uuid, new ItemJournalEntry(itemJournalEntry.firstSeen, itemJournalEntry.lastSeen, itemJournalEntry.amountCollected + count));
+		else
+		{
+			this.items.put(uuid, new ItemJournalEntry(itemJournalEntry.firstSeen, itemJournalEntry.lastSeen, itemJournalEntry.amountCollected + count));
+			return itemJournalEntry.amountCollected;
+		}
 	}
 
 	public record ItemJournalEntry(

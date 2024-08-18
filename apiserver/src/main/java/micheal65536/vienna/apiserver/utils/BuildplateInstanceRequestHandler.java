@@ -21,7 +21,6 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.global.EncounterBuildplates;
 import micheal65536.vienna.db.model.global.SharedBuildplates;
-import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
@@ -623,12 +622,13 @@ public final class BuildplateInstanceRequestHandler
 								inventory.addItems(item.id(), new NonStackableItemInstance[]{new NonStackableItemInstance(item.instanceId(), item.wear())});
 							}
 
-							journal.touchItem(item.id(), timestamp);
-							if (catalogItem.journalEntry() != null && journal.getItem(item.id()).amountCollected() == 0)
+							if (journal.addCollectedItem(item.id(), timestamp, item.count()) == 0)
 							{
-								unlockedJournalItems.add(item.id());
+								if (catalogItem.journalEntry() != null)
+								{
+									unlockedJournalItems.add(item.id());
+								}
 							}
-							journal.addCollectedItem(item.id(), item.count());
 						}
 
 						Hotbar hotbar = new Hotbar();
@@ -710,13 +710,14 @@ public final class BuildplateInstanceRequestHandler
 						inventory.addItems(inventoryAddItemMessage.itemId(), new NonStackableItemInstance[]{new NonStackableItemInstance(inventoryAddItemMessage.instanceId(), inventoryAddItemMessage.wear())});
 					}
 
-					journal.touchItem(inventoryAddItemMessage.itemId(), timestamp);
 					boolean journalItemUnlocked = false;
-					if (catalogItem.journalEntry() != null && journal.getItem(inventoryAddItemMessage.itemId()).amountCollected() == 0)
+					if (journal.addCollectedItem(inventoryAddItemMessage.itemId(), timestamp, inventoryAddItemMessage.count()) == 0)
 					{
-						journalItemUnlocked = true;
+						if (catalogItem.journalEntry() != null)
+						{
+							journalItemUnlocked = true;
+						}
 					}
-					journal.addCollectedItem(inventoryAddItemMessage.itemId(), inventoryAddItemMessage.count());
 
 					EarthDB.Query query = new EarthDB.Query(true)
 							.update("inventory", inventoryAddItemMessage.playerId(), inventory)

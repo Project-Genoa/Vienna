@@ -40,8 +40,6 @@ import micheal65536.vienna.staticdata.StaticData;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.UUID;
-import java.util.stream.IntStream;
 
 public class WorkshopRouter extends Router
 {
@@ -624,27 +622,21 @@ public class WorkshopRouter extends Router
 								{
 									inventory.addItems(inputItem.id(), inputItem.count());
 								}
-								journal.touchItem(inputItem.id(), request.timestamp);
+								journal.addCollectedItem(inputItem.id(), request.timestamp, 0);
 							}
 
+							Rewards rewards = new Rewards();
 							int outputQuantity = state.availableRounds() * state.output().count();
 							if (outputQuantity > 0)
 							{
-								Catalog.ItemsCatalog.Item item = this.staticData.catalog.itemsCatalog.getItem(state.output().id());
-								if (item.stackable())
-								{
-									inventory.addItems(item.id(), outputQuantity);
-								}
-								else
-								{
-									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
-								}
-								journal.touchItem(state.output().id(), request.timestamp);
+								rewards.addItem(state.output().id(), outputQuantity);
 							}
 
 							craftingSlot.activeJob = null;
 
 							query.update("crafting", playerId, craftingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+							query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.CraftingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())), false);
+							query.then(rewards.toRedeemQuery(playerId, request.timestamp, staticData), false);
 
 							return query;
 						})
@@ -696,22 +688,7 @@ public class WorkshopRouter extends Router
 							{
 								inventory.addItems(state.input().id(), state.input().count());
 							}
-							journal.touchItem(state.input().id(), request.timestamp);
-
-							int outputQuantity = state.availableRounds() * state.output().count();
-							if (outputQuantity > 0)
-							{
-								Catalog.ItemsCatalog.Item item = this.staticData.catalog.itemsCatalog.getItem(state.output().id());
-								if (item.stackable())
-								{
-									inventory.addItems(item.id(), outputQuantity);
-								}
-								else
-								{
-									inventory.addItems(item.id(), IntStream.range(0, outputQuantity).mapToObj(index -> new NonStackableItemInstance(UUID.randomUUID().toString(), 0)).toArray(NonStackableItemInstance[]::new));
-								}
-								journal.touchItem(state.output().id(), request.timestamp);
-							}
+							journal.addCollectedItem(state.input().id(), request.timestamp, 0);
 
 							if (state.remainingAddedFuel() != null)
 							{
@@ -723,7 +700,14 @@ public class WorkshopRouter extends Router
 								{
 									inventory.addItems(state.remainingAddedFuel().item().id(), state.remainingAddedFuel().item().count());
 								}
-								journal.touchItem(state.remainingAddedFuel().item().id(), request.timestamp);
+								journal.addCollectedItem(state.remainingAddedFuel().item().id(), request.timestamp, 0);
+							}
+
+							Rewards rewards = new Rewards();
+							int outputQuantity = state.availableRounds() * state.output().count();
+							if (outputQuantity > 0)
+							{
+								rewards.addItem(state.output().id(), outputQuantity);
 							}
 
 							smeltingSlot.activeJob = null;
@@ -740,6 +724,8 @@ public class WorkshopRouter extends Router
 							}
 
 							query.update("smelting", playerId, smeltingSlots).update("inventory", playerId, inventory).update("journal", playerId, journal);
+							query.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.SmeltingCompletedEntry(request.timestamp, rewards.toDBRewardsModel())), false);
+							query.then(rewards.toRedeemQuery(playerId, request.timestamp, staticData), false);
 
 							return query;
 						})
