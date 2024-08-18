@@ -169,8 +169,8 @@ public final class Rewards
 			}
 
 			return updateQuery;
-		});
-		getQuery.then(new EarthDB.Query(false).extra("rewards", this));
+		}, false);
+		getQuery.extra("rewards", this);
 
 		return getQuery;
 	}

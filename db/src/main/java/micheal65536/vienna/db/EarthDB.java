@@ -2,7 +2,6 @@ package micheal65536.vienna.db;
 
 import com.google.gson.Gson;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Tokens;
@@ -171,11 +170,16 @@ public final class EarthDB implements AutoCloseable
 	{
 		private final boolean write;
 		private final LinkedList<WriteObjectsEntry> writeObjects = new LinkedList<>();
+		private final LinkedList<BumpEntry> bumps = new LinkedList<>();
 		private final LinkedList<ReadObjectsEntry> readObjects = new LinkedList<>();
 		private final LinkedList<ExtrasEntry> extras = new LinkedList<>();
-		private LinkedList<Function<Results, Query>> thenFunctions = new LinkedList<>();
+		private final LinkedList<ThenFunctionEntry> thenFunctions = new LinkedList<>();
 
 		private record WriteObjectsEntry(@NotNull String type, @NotNull String id, @NotNull Object value)
+		{
+		}
+
+		private record BumpEntry(@NotNull String type, @NotNull String id, @NotNull Class<?> valueClass)
 		{
 		}
 
@@ -184,6 +188,10 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		private record ExtrasEntry(@NotNull String name, @NotNull Object value)
+		{
+		}
+
+		private record ThenFunctionEntry(@NotNull Function<Results, Query> function, boolean replaceResults)
 		{
 		}
 
@@ -204,6 +212,17 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		@NotNull
+		public <T> Query bump(@NotNull String type, @NotNull String id, @NotNull Class<T> valueClass)
+		{
+			if (!this.write)
+			{
+				throw new UnsupportedOperationException();
+			}
+			this.bumps.add(new BumpEntry(type, id, valueClass));
+			return this;
+		}
+
+		@NotNull
 		public <T> Query get(@NotNull String type, @NotNull String id, @NotNull Class<T> valueClass)
 		{
 			this.readObjects.add(new ReadObjectsEntry(type, id, valueClass));
@@ -218,17 +237,28 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		@NotNull
+		public Query then(@NotNull Function<Results, Query> function, boolean replaceResults)
+		{
+			this.thenFunctions.add(new ThenFunctionEntry(function, replaceResults));
+			return this;
+		}
+
+		@NotNull
 		public Query then(@NotNull Function<Results, Query> function)
 		{
-			this.thenFunctions.add(function);
-			return this;
+			return this.then(function, true);
+		}
+
+		@NotNull
+		public Query then(@NotNull Query query, boolean replaceResults)
+		{
+			return this.then(results -> query, replaceResults);
 		}
 
 		@NotNull
 		public Query then(@NotNull Query query)
 		{
-			this.thenFunctions.add(results -> query);
-			return this;
+			return this.then(query, true);
 		}
 
 		@NotNull
@@ -236,8 +266,10 @@ public final class EarthDB implements AutoCloseable
 		{
 			try (Transaction transaction = earthDB.transaction(this.write))
 			{
-				Results results = this.executeInternal(transaction, this.write, null);
+				HashMap<String, Integer> updates = new HashMap<>();
+				Results results = this.executeInternal(transaction, this.write, updates);
 				transaction.commit();
+				results.updates.putAll(updates);
 				return results;
 			}
 			catch (SQLException exception)
@@ -247,7 +279,7 @@ public final class EarthDB implements AutoCloseable
 		}
 
 		@NotNull
-		private Results executeInternal(@NotNull Transaction transaction, boolean write, @Nullable HashMap<String, Integer> parentUpdates) throws DatabaseException, SQLException
+		private Results executeInternal(@NotNull Transaction transaction, boolean write, @NotNull HashMap<String, Integer> updates) throws DatabaseException, SQLException
 		{
 			if (this.write && !write)
 			{
@@ -255,14 +287,10 @@ public final class EarthDB implements AutoCloseable
 			}
 
 			Results results = new Results();
-			if (parentUpdates != null)
-			{
-				results.updates.putAll(parentUpdates);
-			}
 
 			for (WriteObjectsEntry entry : this.writeObjects)
 			{
-				String json = new Gson().newBuilder().serializeNulls().create().toJson(entry.value);
+				String json = toJson(entry.value);
 				PreparedStatement statement = transaction.connection.prepareStatement("INSERT OR REPLACE INTO objects(type, id, value, version) VALUES (?, ?, ?, COALESCE((SELECT version FROM objects WHERE type == ? AND id == ?), 1) + 1)");
 				statement.setString(1, entry.type);
 				statement.setString(2, entry.id);
@@ -279,12 +307,59 @@ public final class EarthDB implements AutoCloseable
 				if (resultSet.next())
 				{
 					int version = resultSet.getInt("version");
-					results.updates.put(entry.type, version);
+					updates.put(entry.type, version);
 				}
 				else
 				{
 					throw new DatabaseException("Could not query updated object");
 				}
+			}
+
+			for (BumpEntry entry : this.bumps)
+			{
+				Integer version;
+				try (PreparedStatement statement = transaction.connection.prepareStatement("SELECT version FROM objects WHERE type == ? AND id == ?"))
+				{
+					statement.setString(1, entry.type);
+					statement.setString(2, entry.id);
+					statement.execute();
+					ResultSet resultSet = statement.getResultSet();
+					if (resultSet.next())
+					{
+						version = resultSet.getInt("version");
+					}
+					else
+					{
+						version = null;
+					}
+				}
+
+				int resultVersion;
+				if (version != null)
+				{
+					try (PreparedStatement statement = transaction.connection.prepareStatement("UPDATE objects SET version = ? WHERE type == ? AND id == ?"))
+					{
+						statement.setInt(1, version + 1);
+						statement.setString(2, entry.type);
+						statement.setString(3, entry.id);
+						statement.execute();
+					}
+					resultVersion = version + 1;
+				}
+				else
+				{
+					Object value = createNewInstance(entry.valueClass);
+					String json = toJson(value);
+					try (PreparedStatement statement = transaction.connection.prepareStatement("INSERT INTO objects(type, id, value, version) VALUES (?, ?, ?, 2)"))
+					{
+						statement.setString(1, entry.type);
+						statement.setString(2, entry.id);
+						statement.setString(3, json);
+						statement.execute();
+					}
+					resultVersion = 2;
+				}
+				updates.put(entry.type, resultVersion);
 			}
 
 			for (ReadObjectsEntry entry : this.readObjects)
@@ -299,24 +374,12 @@ public final class EarthDB implements AutoCloseable
 					{
 						String json = resultSet.getString("value");
 						int version = resultSet.getInt("version");
-						Object value = new Gson().newBuilder()
-								.registerTypeAdapter(Tokens.Token.class, new Tokens.Token.Deserializer())
-								.registerTypeAdapter(ActivityLog.Entry.class, new ActivityLog.Entry.Deserializer())
-								.create().fromJson(json, entry.valueClass);
+						Object value = fromJson(json, entry.valueClass);
 						results.getValues.put(entry.type, new Results.Result<>(value, version));
 					}
 					else
 					{
-						try
-						{
-							Constructor constructor = entry.valueClass.getDeclaredConstructor();
-							Object value = constructor.newInstance();
-							results.getValues.put(entry.type, new Results.Result<>(value, 1));
-						}
-						catch (ReflectiveOperationException exception)
-						{
-							throw new DatabaseException(exception);
-						}
+						results.getValues.put(entry.type, new Results.Result<>(createNewInstance(entry.valueClass), 1));
 					}
 				}
 			}
@@ -326,13 +389,47 @@ public final class EarthDB implements AutoCloseable
 				results.extras.put(entry.name, entry.value);
 			}
 
-			for (Function<Results, Query> function : this.thenFunctions)
+			for (ThenFunctionEntry entry : this.thenFunctions)
 			{
-				Query query = function.apply(results);
-				results = query.executeInternal(transaction, write, results.updates);
+				Query query = entry.function.apply(results);
+				Results innerResults = query.executeInternal(transaction, write, updates);
+				if (entry.replaceResults)
+				{
+					results = innerResults;
+				}
 			}
 
 			return results;
+		}
+
+		@NotNull
+		private static <T> T fromJson(@NotNull String json, @NotNull Class<T> valueClass)
+		{
+			return new Gson().newBuilder()
+					.registerTypeAdapter(Tokens.Token.class, new Tokens.Token.Deserializer())
+					.registerTypeAdapter(ActivityLog.Entry.class, new ActivityLog.Entry.Deserializer())
+					.create().fromJson(json, valueClass);
+		}
+
+		@NotNull
+		private static String toJson(@NotNull Object value)
+		{
+			return new Gson().newBuilder().serializeNulls().create().toJson(value);
+		}
+
+		@NotNull
+		private static <T> T createNewInstance(@NotNull Class<T> valueClass) throws DatabaseException
+		{
+			try
+			{
+				Constructor<T> constructor = valueClass.getDeclaredConstructor();
+				T value = constructor.newInstance();
+				return value;
+			}
+			catch (ReflectiveOperationException exception)
+			{
+				throw new DatabaseException(exception);
+			}
 		}
 	}
 

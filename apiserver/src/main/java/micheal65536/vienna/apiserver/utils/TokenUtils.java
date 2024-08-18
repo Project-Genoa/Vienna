@@ -49,7 +49,7 @@ public final class TokenUtils
 					updateQuery.then(Rewards.fromDBRewardsModel(levelUpToken.rewards).toRedeemQuery(playerId, currentTime, staticData));
 
 					return updateQuery;
-				});
+				}, false);
 			}
 			case JOURNAL_ITEM_UNLOCKED ->
 			{
@@ -67,11 +67,11 @@ public final class TokenUtils
 					}*/
 
 					return updateQuery;
-				});
+				}, false);
 			}
 		}
 
-		getQuery.then(new EarthDB.Query(false).extra("token", token));
+		getQuery.extra("token", token);
 
 		return getQuery;
 	}
