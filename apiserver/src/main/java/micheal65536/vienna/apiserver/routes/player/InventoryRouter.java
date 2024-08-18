@@ -10,19 +10,26 @@ import micheal65536.vienna.apiserver.routing.ServerErrorException;
 import micheal65536.vienna.apiserver.types.inventory.HotbarItem;
 import micheal65536.vienna.apiserver.types.inventory.NonStackableInventoryItem;
 import micheal65536.vienna.apiserver.types.inventory.StackableInventoryItem;
+import micheal65536.vienna.apiserver.utils.BoostUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.ItemWear;
 import micheal65536.vienna.apiserver.utils.TimeFormatter;
+import micheal65536.vienna.apiserver.utils.TokenUtils;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
+import micheal65536.vienna.db.model.common.NonStackableItemInstance;
+import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
+import micheal65536.vienna.db.model.player.Profile;
+import micheal65536.vienna.db.model.player.Tokens;
 import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.UUID;
 
 public class InventoryRouter extends Router
 {
@@ -159,6 +166,79 @@ public class InventoryRouter extends Router
 					item.instanceId() != null ? ItemWear.wearToHealth(item.uuid(), inventoryModel.getItemInstance(item.uuid(), item.instanceId()).wear(), catalog.itemsCatalog) : 0.0f
 			) : null).toArray(HotbarItem[]::new);
 			return Response.okFromJson(hotbarItems, HotbarItem[].class);
+		});
+
+		this.addHandler(new Route.Builder(Request.Method.POST, "/inventory/survival/$itemId/consume").build(), request ->
+		{
+			String playerId = request.getContextData("playerId");
+			String itemId = request.getParameter("itemId");
+
+			Catalog.ItemsCatalog.Item item = catalog.itemsCatalog.getItem(itemId);
+			if (item == null || item.consumeInfo() == null)
+			{
+				return Response.badRequest();
+			}
+
+			try
+			{
+				EarthDB.Results results = new EarthDB.Query(true)
+						.get("inventory", playerId, Inventory.class)
+						.get("journal", playerId, Journal.class)
+						.get("profile", playerId, Profile.class)
+						.get("boosts", playerId, Boosts.class)
+						.then(results1 ->
+						{
+							Inventory inventory = (Inventory) results1.get("inventory").value();
+							Journal journal = (Journal) results1.get("journal").value();
+							Profile profile = (Profile) results1.get("profile").value();
+							Boosts boosts = (Boosts) results1.get("boosts").value();
+
+							EarthDB.Query query = new EarthDB.Query(true);
+
+							if (!inventory.takeItems(itemId, 1))
+							{
+								return new EarthDB.Query(false);
+							}
+
+							String returnItemId = item.consumeInfo().returnItemId();
+							if (returnItemId != null)
+							{
+								Catalog.ItemsCatalog.Item returnItem = catalog.itemsCatalog.getItem(returnItemId);
+								if (returnItem.stackable())
+								{
+									inventory.addItems(returnItemId, 1);
+								}
+								else
+								{
+									inventory.addItems(returnItemId, new NonStackableItemInstance[]{new NonStackableItemInstance(UUID.randomUUID().toString(), 0)});
+								}
+								if (journal.addCollectedItem(returnItemId, request.timestamp, 1) == 0)
+								{
+									if (returnItem.journalEntry() != null)
+									{
+										query.then(TokenUtils.addToken(playerId, new Tokens.JournalItemUnlockedToken(returnItemId)));
+									}
+								}
+							}
+
+							int maxPlayerHealth = BoostUtils.getMaxPlayerHealth(boosts, request.timestamp, catalog.itemsCatalog);
+							profile.health += item.consumeInfo().heal();
+							if (profile.health > maxPlayerHealth)
+							{
+								profile.health = maxPlayerHealth;
+							}
+
+							query.update("inventory", playerId, inventory).update("journal", playerId, journal).update("profile", playerId, profile);
+
+							return query;
+						})
+						.execute(earthDB);
+				return Response.okFromJson(new EarthApiResponse<>(null, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
+			}
+			catch (DatabaseException exception)
+			{
+				throw new ServerErrorException(exception);
+			}
 		});
 	}
 }
