@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.Arrays;
+import java.util.LinkedList;
 
 public final class Boosts
 {
@@ -21,16 +22,20 @@ public final class Boosts
 		return Arrays.stream(this.activeBoosts).filter(activeBoost -> activeBoost != null && activeBoost.instanceId.equals(instanceId)).findFirst().orElse(null);
 	}
 
-	public void prune(long currentTime)
+	@NotNull
+	public ActiveBoost[] prune(long currentTime)
 	{
+		LinkedList<ActiveBoost> prunedBoosts = new LinkedList<>();
 		for (int index = 0; index < this.activeBoosts.length; index++)
 		{
 			ActiveBoost activeBoost = this.activeBoosts[index];
 			if (activeBoost != null && activeBoost.startTime + activeBoost.duration < currentTime)
 			{
 				this.activeBoosts[index] = null;
+				prunedBoosts.add(activeBoost);
 			}
 		}
+		return prunedBoosts.toArray(ActiveBoost[]::new);
 	}
 
 	public record ActiveBoost(

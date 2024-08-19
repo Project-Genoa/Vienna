@@ -17,10 +17,13 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.ActivityLog;
 import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.Inventory;
+import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.staticdata.Catalog;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.UUID;
 
 public class BoostsRouter extends Router
 {
@@ -29,20 +32,39 @@ public class BoostsRouter extends Router
 		this.addHandler(new Route.Builder(Request.Method.GET, "/boosts").build(), request ->
 		{
 			String playerId = request.getContextData("playerId");
-			Boosts boosts;
+			EarthDB.Results results;
 			try
 			{
-				EarthDB.Results results = new EarthDB.Query(false)
+				results = new EarthDB.Query(true)
 						.get("boosts", playerId, Boosts.class)
+						.get("profile", playerId, Profile.class)
+						.then(results1 ->
+						{
+							// I know this is ugly, we're making changes to the database in response to a GET request, but if we don't then the client won't correctly update the player health bar in the UI
+
+							Boosts boosts = (Boosts) results1.get("boosts").value();
+							Profile profile = (Profile) results1.get("profile").value();
+
+							if (pruneBoostsAndUpdateProfile(boosts, profile, request.timestamp, catalog.itemsCatalog))
+							{
+								return new EarthDB.Query(true)
+										.update("boosts", playerId, boosts)
+										.update("profile", playerId, profile)
+										.extra("boosts", boosts);
+							}
+							else
+							{
+								return new EarthDB.Query(false)
+										.extra("boosts", boosts);
+							}
+						})
 						.execute(earthDB);
-				boosts = (Boosts) results.get("boosts").value();
 			}
 			catch (DatabaseException exception)
 			{
 				throw new ServerErrorException(exception);
 			}
-
-			boosts.prune(request.timestamp);
+			Boosts boosts = (Boosts) results.getExtra("boosts");
 
 			micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[] potions = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[boosts.activeBoosts.length];
 			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect> activeEffects = new LinkedList<>();
@@ -136,7 +158,7 @@ public class BoostsRouter extends Router
 					new HashMap<>(),
 					hasActiveBoost ? TimeFormatter.formatTime(expiry) : null
 			);
-			return Response.okFromJson(new EarthApiResponse<>(boostsResponse), EarthApiResponse.class);
+			return Response.okFromJson(new EarthApiResponse<>(boostsResponse, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 		});
 
 		this.addHandler(new Route.Builder(Request.Method.POST, "/boosts/potions/$itemId/activate").build(), request ->
@@ -155,25 +177,56 @@ public class BoostsRouter extends Router
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("inventory", playerId, Inventory.class)
 						.get("boosts", playerId, Boosts.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							Inventory inventory = (Inventory) results1.get("inventory").value();
 							Boosts boosts = (Boosts) results1.get("boosts").value();
+							Profile profile = (Profile) results1.get("profile").value();
+							boolean profileChanged = false;
+
+							if (pruneBoostsAndUpdateProfile(boosts, profile, request.timestamp, catalog.itemsCatalog))
+							{
+								profileChanged = true;
+							}
 
 							if (!inventory.takeItems(itemId, 1))
 							{
 								return new EarthDB.Query(false);
 							}
 
-							if (BoostUtils.activatePotion(boosts, itemId, request.timestamp, catalog.itemsCatalog) == null)
+							String instanceId = UUID.randomUUID().toString();
+							long duration = item.boostInfo().duration() != null ? item.boostInfo().duration() : Arrays.stream(item.boostInfo().effects()).mapToLong(Catalog.ItemsCatalog.Item.BoostInfo.Effect::duration).max().orElse(0);
+							int newIndex = -1;
+							for (int index = 0; index < boosts.activeBoosts.length; index++)
+							{
+								if (boosts.activeBoosts[index] == null)
+								{
+									newIndex = index;
+									break;
+								}
+							}
+							if (newIndex == -1)
 							{
 								return new EarthDB.Query(false);
 							}
+							boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(instanceId, itemId, request.timestamp, duration);
 
-							return new EarthDB.Query(true)
-									.update("inventory", playerId, inventory)
-									.update("boosts", playerId, boosts)
-									.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.BoostActivatedEntry(request.timestamp, itemId)));
+							if (Arrays.stream(item.boostInfo().effects()).anyMatch(effect -> effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.HEALTH))
+							{
+								// TODO: determine if we should add new player health straight away
+								profileChanged = true;
+							}
+
+							EarthDB.Query updateQuery = new EarthDB.Query(true);
+							updateQuery.update("inventory", playerId, inventory);
+							updateQuery.update("boosts", playerId, boosts);
+							if (profileChanged)
+							{
+								updateQuery.update("profile", playerId, profile);
+							}
+							updateQuery.then(ActivityLogUtils.addEntry(playerId, new ActivityLog.BoostActivatedEntry(request.timestamp, itemId)));
+							return updateQuery;
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(null, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -193,10 +246,17 @@ public class BoostsRouter extends Router
 			{
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("boosts", playerId, Boosts.class)
+						.get("profile", playerId, Profile.class)
 						.then(results1 ->
 						{
 							Boosts boosts = (Boosts) results1.get("boosts").value();
-							boosts.prune(request.timestamp);
+							Profile profile = (Profile) results1.get("profile").value();
+							boolean profileChanged = false;
+
+							if (pruneBoostsAndUpdateProfile(boosts, profile, request.timestamp, catalog.itemsCatalog))
+							{
+								profileChanged = true;
+							}
 
 							Boosts.ActiveBoost activeBoost = boosts.get(instanceId);
 							if (activeBoost == null)
@@ -218,8 +278,23 @@ public class BoostsRouter extends Router
 								}
 							}
 
-							return new EarthDB.Query(true)
-									.update("boosts", playerId, boosts);
+							if (Arrays.stream(item.boostInfo().effects()).anyMatch(effect -> effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.HEALTH))
+							{
+								profileChanged = true;
+								int maxPlayerHealth = BoostUtils.getMaxPlayerHealth(boosts, request.timestamp, catalog.itemsCatalog);
+								if (profile.health > maxPlayerHealth)
+								{
+									profile.health = maxPlayerHealth;
+								}
+							}
+
+							EarthDB.Query updateQuery = new EarthDB.Query(true);
+							updateQuery.update("boosts", playerId, boosts);
+							if (profileChanged)
+							{
+								updateQuery.update("profile", playerId, profile);
+							}
+							return updateQuery;
 						})
 						.execute(earthDB);
 				return Response.okFromJson(new EarthApiResponse<>(null, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
@@ -229,5 +304,22 @@ public class BoostsRouter extends Router
 				throw new ServerErrorException(exception);
 			}
 		});
+	}
+
+	private static boolean pruneBoostsAndUpdateProfile(@NotNull Boosts boosts, @NotNull Profile profile, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
+	{
+		boolean profileChanged = false;
+		Boosts.ActiveBoost[] prunedBoosts = boosts.prune(currentTime);
+		if (Arrays.stream(prunedBoosts).flatMap(activeBoost -> Arrays.stream(itemsCatalog.getItem(activeBoost.itemId()).boostInfo().effects())).anyMatch(effect -> effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.HEALTH))
+		{
+			profileChanged = true;
+		}
+		int maxPlayerHealth = BoostUtils.getMaxPlayerHealth(boosts, currentTime, itemsCatalog);
+		if (profile.health > maxPlayerHealth)
+		{
+			profile.health = maxPlayerHealth;
+			profileChanged = true;
+		}
+		return profileChanged;
 	}
 }

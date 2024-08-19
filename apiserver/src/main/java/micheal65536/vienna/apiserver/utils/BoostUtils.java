@@ -1,7 +1,6 @@
 package micheal65536.vienna.apiserver.utils;
 
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.apiserver.types.common.Effect;
 import micheal65536.vienna.db.model.player.Boosts;
@@ -9,47 +8,9 @@ import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 import java.util.LinkedList;
-import java.util.UUID;
 
 public final class BoostUtils
 {
-	@Nullable
-	public static String activatePotion(@NotNull Boosts boosts, @NotNull String itemId, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
-	{
-		Catalog.ItemsCatalog.Item item = itemsCatalog.getItem(itemId);
-		if (item == null)
-		{
-			throw new IllegalArgumentException();
-		}
-		Catalog.ItemsCatalog.Item.BoostInfo boostInfo = item.boostInfo();
-		if (boostInfo == null || boostInfo.type() != Catalog.ItemsCatalog.Item.BoostInfo.Type.POTION)
-		{
-			throw new IllegalArgumentException();
-		}
-
-		boosts.prune(currentTime);
-
-		String instanceId = UUID.randomUUID().toString();
-		long duration = boostInfo.duration() != null ? boostInfo.duration() : Arrays.stream(boostInfo.effects()).mapToLong(Catalog.ItemsCatalog.Item.BoostInfo.Effect::duration).max().orElse(0);
-
-		int newIndex = -1;
-		for (int index = 0; index < boosts.activeBoosts.length; index++)
-		{
-			if (boosts.activeBoosts[index] == null)
-			{
-				newIndex = index;
-				break;
-			}
-		}
-		if (newIndex == -1)
-		{
-			return null;
-		}
-		boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(instanceId, itemId, currentTime, duration);
-
-		return instanceId;
-	}
-
 	@NotNull
 	public static Catalog.ItemsCatalog.Item.BoostInfo.Effect[] getActiveEffects(@NotNull Boosts boosts, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
 	{
