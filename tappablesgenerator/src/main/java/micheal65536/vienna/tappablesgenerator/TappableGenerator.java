@@ -78,20 +78,14 @@ public class TappableGenerator
 				throw new AssertionError();
 			}
 
-			LinkedList<Tappable.Drops.Item> items = new LinkedList<>();
+			LinkedList<Tappable.Item> items = new LinkedList<>();
 			for (String itemId : dropSet.items())
 			{
 				TappablesConfig.TappableConfig.ItemCount itemCount = tappableConfig.itemCounts().get(itemId);
-				items.add(new Tappable.Drops.Item(itemId, this.random.nextInt(itemCount.min(), itemCount.max() + 1)));
+				items.add(new Tappable.Item(itemId, this.random.nextInt(itemCount.min(), itemCount.max() + 1)));
 			}
 
-			int experiencePoints = items.stream().mapToInt(item -> this.staticData.catalog.itemsCatalog.getItem(item.id()).experience().tappable() * item.count()).sum();
 			Tappable.Rarity rarity = items.stream().map(item -> this.staticData.catalog.itemsCatalog.getItem(item.id()).rarity()).max(Comparator.comparing(rarity1 -> rarity1.ordinal())).map(rarity1 -> Tappable.Rarity.valueOf(rarity1.name())).orElseThrow();
-
-			Tappable.Drops drops = new Tappable.Drops(
-					experiencePoints,
-					items.toArray(Tappable.Drops.Item[]::new)
-			);
 
 			Tappable tappable = new Tappable(
 					UUID.randomUUID().toString(),
@@ -101,7 +95,7 @@ public class TappableGenerator
 					duration,
 					tappableConfig.icon(),
 					rarity,
-					drops
+					items.toArray(Tappable.Item[]::new)
 			);
 			tappables.add(tappable);
 		}

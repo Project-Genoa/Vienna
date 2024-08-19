@@ -10,7 +10,7 @@ public record Tappable(
 		long validFor,
 		@NotNull String icon,
 		@NotNull Rarity rarity,
-		@NotNull Drops drops
+		@NotNull Item[] items
 )
 {
 	public enum Rarity
@@ -22,16 +22,10 @@ public record Tappable(
 		LEGENDARY
 	}
 
-	public record Drops(
-			int experiencePoints,
-			@NotNull Item[] items
+	public record Item(
+			@NotNull String id,
+			int count
 	)
 	{
-		public record Item(
-				@NotNull String id,
-				int count
-		)
-		{
-		}
 	}
 }

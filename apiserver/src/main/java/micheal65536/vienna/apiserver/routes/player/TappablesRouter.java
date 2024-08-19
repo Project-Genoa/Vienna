@@ -12,6 +12,7 @@ import micheal65536.vienna.apiserver.types.common.Token;
 import micheal65536.vienna.apiserver.types.tappables.ActiveLocation;
 import micheal65536.vienna.apiserver.types.tappables.EncounterState;
 import micheal65536.vienna.apiserver.utils.ActivityLogUtils;
+import micheal65536.vienna.apiserver.utils.BoostUtils;
 import micheal65536.vienna.apiserver.utils.EarthApiResponse;
 import micheal65536.vienna.apiserver.utils.MapBuilder;
 import micheal65536.vienna.apiserver.utils.Rewards;
@@ -20,8 +21,10 @@ import micheal65536.vienna.apiserver.utils.TimeFormatter;
 import micheal65536.vienna.db.DatabaseException;
 import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.player.ActivityLog;
+import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.RedeemedTappables;
 import micheal65536.vienna.eventbus.client.EventBusClient;
+import micheal65536.vienna.staticdata.Catalog;
 import micheal65536.vienna.staticdata.StaticData;
 
 import java.util.Arrays;
@@ -123,11 +126,13 @@ public class TappablesRouter extends Router
 				String playerId = request.getContextData("playerId");
 				EarthDB.Results results = new EarthDB.Query(true)
 						.get("redeemedTappables", playerId, RedeemedTappables.class)
+						.get("boosts", playerId, Boosts.class)
 						.then(results1 ->
 						{
 							EarthDB.Query query = new EarthDB.Query(true);
 
 							RedeemedTappables redeemedTappables = (RedeemedTappables) results1.get("redeemedTappables").value();
+							Boosts boosts = (Boosts) results1.get("boosts").value();
 
 							if (redeemedTappables.isRedeemed(tappable.id()))
 							{
@@ -135,13 +140,39 @@ public class TappablesRouter extends Router
 								return query;
 							}
 
+							int experiencePointsGlobalMultiplier = 0;
+							HashMap<String, Integer> experiencePointsPerItemMultiplier = new HashMap<>();
+							for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : BoostUtils.getActiveEffects(boosts, request.timestamp, staticData.catalog.itemsCatalog))
+							{
+								if (effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.ITEM_XP)
+								{
+									if (effect.applicableItemIds() != null && effect.applicableItemIds().length > 0)
+									{
+										for (String itemId : effect.applicableItemIds())
+										{
+											experiencePointsPerItemMultiplier.put(itemId, experiencePointsPerItemMultiplier.getOrDefault(itemId, 0) + effect.value());
+										}
+									}
+									else
+									{
+										experiencePointsGlobalMultiplier += effect.value();
+									}
+								}
+							}
+
 							Rewards rewards = new Rewards();
-							rewards.addExperiencePoints(tappable.drops().experiencePoints());
-							for (TappablesManager.Tappable.Drops.Item item : tappable.drops().items())
+							for (TappablesManager.Tappable.Item item : tappable.items())
 							{
 								rewards.addItem(item.id(), item.count());
+								int experiencePoints = staticData.catalog.itemsCatalog.getItem(item.id()).experience().tappable();
+								int experiencePointsMultiplier = experiencePointsGlobalMultiplier + experiencePointsPerItemMultiplier.getOrDefault(item.id(), 0);
+								if (experiencePointsMultiplier > 0)
+								{
+									experiencePoints = (experiencePoints * (experiencePointsMultiplier + 100)) / 100;
+								}
+								rewards.addExperiencePoints(experiencePoints * item.count());
 							}
-							rewards.addRubies(1);
+							rewards.addRubies(1);    // TODO
 
 							redeemedTappables.add(tappable.id(), tappable.spawnTime() + tappable.validFor());
 							redeemedTappables.prune(request.timestamp);
