@@ -182,10 +182,10 @@ public class CatalogRouter extends Router
 						boostAttributeString,
 						false,
 						item.boostInfo().canBeRemoved(),
-						item.boostInfo().duration() != null ? TimeFormatter.formatDuration(item.boostInfo().duration()) : null,
+						TimeFormatter.formatDuration(item.boostInfo().duration()),
 						true,
 						item.boostInfo().level(),
-						Arrays.stream(item.boostInfo().effects()).map(BoostUtils::boostEffectToApiResponse).toArray(Effect[]::new),
+						Arrays.stream(item.boostInfo().effects()).map(effect -> BoostUtils.boostEffectToApiResponse(effect, item.boostInfo().duration())).toArray(Effect[]::new),
 						item.boostInfo().triggeredOnDeath() ? "Death" : null,
 						null
 				);

@@ -197,7 +197,7 @@ public final class Catalog
 					@Nullable Integer level,
 					@NotNull Type type,
 					boolean canBeRemoved,
-					@Nullable Long duration,
+					long duration,
 					boolean triggeredOnDeath,
 					@NotNull Effect[] effects
 			)
@@ -212,8 +212,7 @@ public final class Catalog
 						@NotNull Type type,
 						int value,
 						@NotNull String[] applicableItemIds,
-						@NotNull Activation activation,
-						long duration
+						@NotNull Activation activation
 				)
 				{
 					public enum Type

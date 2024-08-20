@@ -7,6 +7,7 @@ import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 
 public final class BoostUtils
@@ -14,7 +15,7 @@ public final class BoostUtils
 	@NotNull
 	public static Catalog.ItemsCatalog.Item.BoostInfo.Effect[] getActiveEffects(@NotNull Boosts boosts, long currentTime, @NotNull Catalog.ItemsCatalog itemsCatalog)
 	{
-		LinkedList<Catalog.ItemsCatalog.Item.BoostInfo.Effect> effects = new LinkedList<>();
+		LinkedHashMap<String, Catalog.ItemsCatalog.Item.BoostInfo> activeBoostsInfo = new LinkedHashMap<>();
 		for (Boosts.ActiveBoost activeBoost : boosts.activeBoosts)
 		{
 			if (activeBoost == null)
@@ -30,12 +31,25 @@ public final class BoostUtils
 			{
 				continue;
 			}
-			Arrays.stream(item.boostInfo().effects())
+
+			Catalog.ItemsCatalog.Item.BoostInfo existingBoostInfo = activeBoostsInfo.getOrDefault(item.boostInfo().name(), null);
+			if (existingBoostInfo != null && existingBoostInfo.level() > item.boostInfo().level())
+			{
+				continue;
+			}
+
+			activeBoostsInfo.put(item.boostInfo().name(), item.boostInfo());
+		}
+
+		LinkedList<Catalog.ItemsCatalog.Item.BoostInfo.Effect> effects = new LinkedList<>();
+		for (Catalog.ItemsCatalog.Item.BoostInfo boostInfo : activeBoostsInfo.values())
+		{
+			Arrays.stream(boostInfo.effects())
 					.filter(effect -> switch (effect.activation())
 					{
 						case INSTANT -> false;
 						case TRIGGERED -> true;
-						case TIMED -> activeBoost.startTime() + effect.duration() >= currentTime;
+						case TIMED -> true;    // already filtered for expiry time above
 					})
 					.forEach(effects::add);
 		}
@@ -112,7 +126,7 @@ public final class BoostUtils
 	}
 
 	@NotNull
-	public static Effect boostEffectToApiResponse(@NotNull Catalog.ItemsCatalog.Item.BoostInfo.Effect effect)
+	public static Effect boostEffectToApiResponse(@NotNull Catalog.ItemsCatalog.Item.BoostInfo.Effect effect, long boostDuration)
 	{
 		String effectTypeString = switch (effect.type())
 		{
@@ -141,7 +155,7 @@ public final class BoostUtils
 
 		return new Effect(
 				effectTypeString,
-				effect.activation() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Activation.TIMED ? TimeFormatter.formatDuration(effect.duration()) : null,
+				effect.activation() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Activation.TIMED ? TimeFormatter.formatDuration(boostDuration) : null,
 				effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_BACKPACK || effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_HOTBAR || effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.RETENTION_XP ? null : effect.value(),
 				switch (effect.type())
 				{

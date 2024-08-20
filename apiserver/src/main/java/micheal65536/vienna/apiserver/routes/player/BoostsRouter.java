@@ -22,6 +22,7 @@ import micheal65536.vienna.staticdata.Catalog;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.UUID;
 
@@ -66,27 +67,31 @@ public class BoostsRouter extends Router
 			}
 			Boosts boosts = (Boosts) results.getExtra("boosts");
 
-			micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[] potions = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[boosts.activeBoosts.length];
-			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect> activeEffects = new LinkedList<>();
-			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost> triggeredOnDeathBoosts = new LinkedList<>();
-			long expiry = Long.MAX_VALUE;
-			boolean hasActiveBoost = false;
-			for (int index = 0; index < boosts.activeBoosts.length; index++)
+			micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[] potions = Arrays.stream(boosts.activeBoosts).map(activeBoost ->
 			{
-				Boosts.ActiveBoost activeBoost = boosts.activeBoosts[index];
+				if (activeBoost == null)
+				{
+					return null;
+				}
+				else
+				{
+					return new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion(true, activeBoost.itemId(), activeBoost.instanceId(), TimeFormatter.formatTime(activeBoost.startTime() + activeBoost.duration()));
+				}
+			}).toArray(micheal65536.vienna.apiserver.types.boosts.Boosts.Potion[]::new);
+
+			record ActiveBoostInfo(
+					@NotNull Boosts.ActiveBoost activeBoost,
+					@NotNull Catalog.ItemsCatalog.Item.BoostInfo boostInfo
+			)
+			{
+			}
+			LinkedHashMap<String, ActiveBoostInfo> activeBoostsWithInfo = new LinkedHashMap<>();
+			for (Boosts.ActiveBoost activeBoost : boosts.activeBoosts)
+			{
 				if (activeBoost == null)
 				{
 					continue;
 				}
-				hasActiveBoost = true;
-
-				long boostExpiry = activeBoost.startTime() + activeBoost.duration();
-				if (boostExpiry < expiry)
-				{
-					expiry = boostExpiry;
-				}
-
-				potions[index] = new micheal65536.vienna.apiserver.types.boosts.Boosts.Potion(true, activeBoost.itemId(), activeBoost.instanceId(), TimeFormatter.formatTime(boostExpiry));
 
 				Catalog.ItemsCatalog.Item item = catalog.itemsCatalog.getItem(activeBoost.itemId());
 				if (item == null || item.boostInfo() == null)
@@ -94,39 +99,46 @@ public class BoostsRouter extends Router
 					continue;
 				}
 
-				if (!item.boostInfo().triggeredOnDeath())
+				ActiveBoostInfo existingActiveBoostInfo = activeBoostsWithInfo.getOrDefault(item.boostInfo().name(), null);
+				if (existingActiveBoostInfo != null && existingActiveBoostInfo.boostInfo.level() > item.boostInfo().level())
 				{
-					for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : item.boostInfo().effects())
+					continue;
+				}
+
+				activeBoostsWithInfo.put(item.boostInfo().name(), new ActiveBoostInfo(activeBoost, item.boostInfo()));
+			}
+
+			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect> activeEffects = new LinkedList<>();
+			LinkedList<micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost> triggeredOnDeathBoosts = new LinkedList<>();
+			for (ActiveBoostInfo activeBoostInfo : activeBoostsWithInfo.values())
+			{
+				if (!activeBoostInfo.boostInfo.triggeredOnDeath())
+				{
+					for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : activeBoostInfo.boostInfo.effects())
 					{
 						if (effect.activation() != Catalog.ItemsCatalog.Item.BoostInfo.Effect.Activation.TIMED)
 						{
-							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoost.itemId(), effect.activation());
+							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoostInfo.activeBoost.itemId(), effect.activation());
 							continue;
 						}
 
-						long effectExpiry = activeBoost.startTime() + effect.duration();
-						if (effectExpiry < expiry)
-						{
-							expiry = effectExpiry;
-						}
-
-						activeEffects.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect(BoostUtils.boostEffectToApiResponse(effect), TimeFormatter.formatTime(effectExpiry)));
+						activeEffects.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ActiveEffect(BoostUtils.boostEffectToApiResponse(effect, activeBoostInfo.activeBoost.duration()), TimeFormatter.formatTime(activeBoostInfo.activeBoost.startTime() + activeBoostInfo.activeBoost.duration())));
 					}
 				}
 				else
 				{
 					LinkedList<Effect> effects = new LinkedList<>();
-					for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : item.boostInfo().effects())
+					for (Catalog.ItemsCatalog.Item.BoostInfo.Effect effect : activeBoostInfo.boostInfo.effects())
 					{
 						if (effect.activation() != Catalog.ItemsCatalog.Item.BoostInfo.Effect.Activation.TRIGGERED)
 						{
-							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoost.itemId(), effect.activation());
+							LogManager.getLogger().warn("Active boost {} has effect with activation {}", activeBoostInfo.activeBoost.itemId(), effect.activation());
 							continue;
 						}
 
-						effects.add(BoostUtils.boostEffectToApiResponse(effect));
+						effects.add(BoostUtils.boostEffectToApiResponse(effect, activeBoostInfo.activeBoost.duration()));
 					}
-					triggeredOnDeathBoosts.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost(true, activeBoost.instanceId(), effects.toArray(Effect[]::new), TimeFormatter.formatTime(boostExpiry)));
+					triggeredOnDeathBoosts.add(new micheal65536.vienna.apiserver.types.boosts.Boosts.ScenarioBoost(true, activeBoostInfo.activeBoost.instanceId(), effects.toArray(Effect[]::new), TimeFormatter.formatTime(activeBoostInfo.activeBoost.startTime() + activeBoostInfo.activeBoost.duration())));
 				}
 			}
 
@@ -156,7 +168,7 @@ public class BoostsRouter extends Router
 							statModiferValues.foodMultiplier() > 0 ? (statModiferValues.foodMultiplier() + 100) / 100.0f : null
 					),
 					new HashMap<>(),
-					hasActiveBoost ? TimeFormatter.formatTime(expiry) : null
+					!activeBoostsWithInfo.isEmpty() ? TimeFormatter.formatTime(activeBoostsWithInfo.values().stream().mapToLong(activeBoostInfo -> activeBoostInfo.activeBoost.startTime() + activeBoostInfo.activeBoost.duration()).min().orElseThrow()) : null
 			);
 			return Response.okFromJson(new EarthApiResponse<>(boostsResponse, new EarthApiResponse.Updates(results)), EarthApiResponse.class);
 		});
@@ -195,27 +207,47 @@ public class BoostsRouter extends Router
 								return new EarthDB.Query(false);
 							}
 
-							String instanceId = UUID.randomUUID().toString();
-							long duration = item.boostInfo().duration() != null ? item.boostInfo().duration() : Arrays.stream(item.boostInfo().effects()).mapToLong(Catalog.ItemsCatalog.Item.BoostInfo.Effect::duration).max().orElse(0);
 							int newIndex = -1;
+							boolean extendExisting = false;
 							for (int index = 0; index < boosts.activeBoosts.length; index++)
 							{
-								if (boosts.activeBoosts[index] == null)
+								if (boosts.activeBoosts[index] != null && boosts.activeBoosts[index].itemId().equals(itemId))
 								{
 									newIndex = index;
+									extendExisting = true;
 									break;
+								}
+							}
+							if (!extendExisting)
+							{
+								for (int index = 0; index < boosts.activeBoosts.length; index++)
+								{
+									if (boosts.activeBoosts[index] == null)
+									{
+										newIndex = index;
+										break;
+									}
 								}
 							}
 							if (newIndex == -1)
 							{
 								return new EarthDB.Query(false);
 							}
-							boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(instanceId, itemId, request.timestamp, duration);
 
-							if (Arrays.stream(item.boostInfo().effects()).anyMatch(effect -> effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.HEALTH))
+							if (extendExisting)
 							{
-								// TODO: determine if we should add new player health straight away
-								profileChanged = true;
+								Boosts.ActiveBoost existingBoost = boosts.activeBoosts[newIndex];
+								boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(existingBoost.instanceId(), existingBoost.itemId(), existingBoost.startTime(), existingBoost.duration() + item.boostInfo().duration());
+							}
+							else
+							{
+								boosts.activeBoosts[newIndex] = new Boosts.ActiveBoost(UUID.randomUUID().toString(), itemId, request.timestamp, item.boostInfo().duration());
+
+								if (Arrays.stream(item.boostInfo().effects()).anyMatch(effect -> effect.type() == Catalog.ItemsCatalog.Item.BoostInfo.Effect.Type.HEALTH))
+								{
+									// TODO: determine if we should add new player health straight away
+									profileChanged = true;
+								}
 							}
 
 							EarthDB.Query updateQuery = new EarthDB.Query(true);
