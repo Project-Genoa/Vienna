@@ -58,7 +58,7 @@ public record Boosts(
 			@Nullable Integer maximumPlayerHealth,
 			@Nullable Integer craftingSpeed,
 			@Nullable Integer smeltingFuelIntensity,
-			@Nullable Integer foodHealthRate
+			@Nullable Float foodHealthRate
 	)
 	{
 	}

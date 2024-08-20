@@ -221,8 +221,15 @@ public class InventoryRouter extends Router
 								}
 							}
 
+							int healing = item.consumeInfo().heal();
+							int healingMultiplier = BoostUtils.getActiveStatModifiers(boosts, request.timestamp, catalog.itemsCatalog).foodMultiplier();
+							if (healingMultiplier > 0)
+							{
+								healing = (healing * (healingMultiplier + 100)) / 100;
+							}
+
 							int maxPlayerHealth = BoostUtils.getMaxPlayerHealth(boosts, request.timestamp, catalog.itemsCatalog);
-							profile.health += item.consumeInfo().heal();
+							profile.health += healing;
 							if (profile.health > maxPlayerHealth)
 							{
 								profile.health = maxPlayerHealth;

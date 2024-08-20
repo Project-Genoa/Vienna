@@ -153,7 +153,7 @@ public class BoostsRouter extends Router
 							statModiferValues.maxPlayerHealthMultiplier() > 0 ? (20 * statModiferValues.maxPlayerHealthMultiplier()) / 100 + 20 : 20,
 							statModiferValues.craftingSpeedMultiplier() > 0 ? statModiferValues.craftingSpeedMultiplier() / 100 + 1 : null,
 							statModiferValues.smeltingSpeedMultiplier() > 0 ? statModiferValues.smeltingSpeedMultiplier() / 100 + 1 : null,
-							statModiferValues.foodMultiplier() > 0 ? statModiferValues.foodMultiplier() + 100 : null
+							statModiferValues.foodMultiplier() > 0 ? (statModiferValues.foodMultiplier() + 100) / 100.0f : null
 					),
 					new HashMap<>(),
 					hasActiveBoost ? TimeFormatter.formatTime(expiry) : null
