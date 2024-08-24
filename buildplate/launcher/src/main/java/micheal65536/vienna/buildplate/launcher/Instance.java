@@ -9,6 +9,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.buildplate.connector.model.ConnectorPluginArg;
+import micheal65536.vienna.buildplate.connector.model.FindPlayerIdRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
@@ -485,6 +486,16 @@ public class Instance
 							return removedCount;
 						}
 					}
+				}
+			}
+
+			case "findPlayer" ->
+			{
+				FindPlayerIdRequest findPlayerIdRequest = this.readJson(request.data, FindPlayerIdRequest.class);
+				if (findPlayerIdRequest != null)
+				{
+					// TODO
+					return findPlayerIdRequest.minecraftName();
 				}
 			}
 		}
