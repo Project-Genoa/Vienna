@@ -6,6 +6,7 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import micheal65536.vienna.buildplate.connector.model.InitialPlayerStateResponse;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
@@ -21,10 +22,12 @@ import micheal65536.vienna.db.EarthDB;
 import micheal65536.vienna.db.model.common.NonStackableItemInstance;
 import micheal65536.vienna.db.model.global.EncounterBuildplates;
 import micheal65536.vienna.db.model.global.SharedBuildplates;
+import micheal65536.vienna.db.model.player.Boosts;
 import micheal65536.vienna.db.model.player.Buildplates;
 import micheal65536.vienna.db.model.player.Hotbar;
 import micheal65536.vienna.db.model.player.Inventory;
 import micheal65536.vienna.db.model.player.Journal;
+import micheal65536.vienna.db.model.player.Profile;
 import micheal65536.vienna.db.model.player.Tokens;
 import micheal65536.vienna.eventbus.client.EventBusClient;
 import micheal65536.vienna.eventbus.client.RequestHandler;
@@ -65,6 +68,7 @@ public final class BuildplateInstanceRequestHandler
 			{
 				try
 				{
+					Gson gson = new Gson().newBuilder().serializeNulls().create();
 					switch (request.type)
 					{
 						case "load" ->
@@ -76,7 +80,7 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoad(buildplateLoadRequest.playerId, buildplateLoadRequest.buildplateId);
-							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
+							return buildplateLoadResponse != null ? gson.toJson(buildplateLoadResponse) : null;
 						}
 						case "loadShared" ->
 						{
@@ -86,7 +90,7 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoadShared(sharedBuildplateLoadRequest.sharedBuildplateId);
-							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
+							return buildplateLoadResponse != null ? gson.toJson(buildplateLoadResponse) : null;
 						}
 						case "loadEncounter" ->
 						{
@@ -96,7 +100,7 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							BuildplateLoadResponse buildplateLoadResponse = BuildplateInstanceRequestHandler.this.handleLoadEncounter(encounterBuildplateLoadRequest.encounterBuildplateId);
-							return buildplateLoadResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(buildplateLoadResponse) : null;
+							return buildplateLoadResponse != null ? gson.toJson(buildplateLoadResponse) : null;
 						}
 						case "saved" ->
 						{
@@ -115,7 +119,7 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							PlayerConnectedResponse playerConnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerConnected(requestWithInstanceId.instanceId, requestWithInstanceId.request);
-							return playerConnectedResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(playerConnectedResponse) : null;
+							return playerConnectedResponse != null ? gson.toJson(playerConnectedResponse) : null;
 						}
 						case "playerDisconnected" ->
 						{
@@ -125,7 +129,17 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							PlayerDisconnectedResponse playerDisconnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerDisconnected(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp);
-							return playerDisconnectedResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(playerDisconnectedResponse) : null;
+							return playerDisconnectedResponse != null ? gson.toJson(playerDisconnectedResponse) : null;
+						}
+						case "getInitialPlayerState" ->
+						{
+							RequestWithInstanceId<String> requestWithInstanceId = readRequest(request.data, String.class);
+							if (requestWithInstanceId == null)
+							{
+								return null;
+							}
+							InitialPlayerStateResponse initialPlayerStateResponse = BuildplateInstanceRequestHandler.this.handleGetInitialPlayerState(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp);
+							return initialPlayerStateResponse != null ? gson.toJson(initialPlayerStateResponse) : null;
 						}
 						case "getInventory" ->
 						{
@@ -135,7 +149,7 @@ public final class BuildplateInstanceRequestHandler
 								return null;
 							}
 							InventoryResponse inventoryResponse = BuildplateInstanceRequestHandler.this.handleGetInventory(requestWithInstanceId.instanceId, requestWithInstanceId.request);
-							return inventoryResponse != null ? new Gson().newBuilder().serializeNulls().create().toJson(inventoryResponse) : null;
+							return inventoryResponse != null ? gson.toJson(inventoryResponse) : null;
 						}
 						case "inventoryAdd" ->
 						{
@@ -656,6 +670,51 @@ public final class BuildplateInstanceRequestHandler
 		}
 
 		return new PlayerDisconnectedResponse();
+	}
+
+	@Nullable
+	private InitialPlayerStateResponse handleGetInitialPlayerState(@NotNull String instanceId, @NotNull String playerId, long currentTime) throws DatabaseException
+	{
+		EarthDB.Results results = new EarthDB.Query(false)
+				.get("profile", playerId, Profile.class)
+				.get("boosts", playerId, Boosts.class)
+				.execute(this.earthDB);
+		Profile profile = (Profile) results.get("profile").value();
+		Boosts boosts = (Boosts) results.get("boosts").value();
+
+		record EffectInfo(
+				long endTime,
+				Catalog.ItemsCatalog.Item.BoostInfo.Effect effect
+		)
+		{
+		}
+		return new InitialPlayerStateResponse(
+				Math.min(profile.health, BoostUtils.getMaxPlayerHealth(boosts, currentTime, this.catalog.itemsCatalog)),
+				Arrays.stream(boosts.activeBoosts)
+						.filter(activeBoost -> activeBoost != null)
+						.filter(activeBoost -> activeBoost.startTime() + activeBoost.duration() >= currentTime)
+						.flatMap(activeBoost -> Arrays.stream(this.catalog.itemsCatalog.getItem(activeBoost.itemId()).boostInfo().effects()).map(effect -> new EffectInfo(activeBoost.startTime() + activeBoost.duration(), effect)))
+						.filter(effectInfo -> switch (effectInfo.effect.type())
+						{
+							case ADVENTURE_XP, DEFENSE, EATING, HEALTH, MINING_SPEED, STRENGTH -> true;
+							default -> false;
+						})
+						.map(effectInfo -> new InitialPlayerStateResponse.BoostStatusEffect(
+								switch (effectInfo.effect.type())
+								{
+									case ADVENTURE_XP -> InitialPlayerStateResponse.BoostStatusEffect.Type.ADVENTURE_XP;
+									case DEFENSE -> InitialPlayerStateResponse.BoostStatusEffect.Type.DEFENSE;
+									case EATING -> InitialPlayerStateResponse.BoostStatusEffect.Type.EATING;
+									case HEALTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.HEALTH;
+									case MINING_SPEED -> InitialPlayerStateResponse.BoostStatusEffect.Type.MINING_SPEED;
+									case STRENGTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.STRENGTH;
+									default -> throw new AssertionError();
+								},
+								effectInfo.effect.value(),
+								effectInfo.endTime - currentTime
+						))
+						.toArray(InitialPlayerStateResponse.BoostStatusEffect[]::new)
+		);
 	}
 
 	@Nullable

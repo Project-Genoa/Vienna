@@ -10,6 +10,7 @@ import org.jetbrains.annotations.Nullable;
 
 import micheal65536.vienna.buildplate.connector.model.ConnectorPluginArg;
 import micheal65536.vienna.buildplate.connector.model.FindPlayerIdRequest;
+import micheal65536.vienna.buildplate.connector.model.InitialPlayerStateResponse;
 import micheal65536.vienna.buildplate.connector.model.InventoryAddItemMessage;
 import micheal65536.vienna.buildplate.connector.model.InventoryRemoveItemRequest;
 import micheal65536.vienna.buildplate.connector.model.InventoryResponse;
@@ -496,6 +497,19 @@ public class Instance
 				{
 					// TODO
 					return findPlayerIdRequest.minecraftName();
+				}
+			}
+			case "getInitialPlayerState" ->
+			{
+				// TODO: should we always return full health/no boosts for "creative" mode?
+				String playerId = this.readJson(request.data, String.class);
+				if (playerId != null)
+				{
+					InitialPlayerStateResponse initialPlayerStateResponse = this.sendEventBusRequest("getInitialPlayerState", playerId, InitialPlayerStateResponse.class).join();
+					if (initialPlayerStateResponse != null)
+					{
+						return initialPlayerStateResponse;
+					}
 				}
 			}
 		}
