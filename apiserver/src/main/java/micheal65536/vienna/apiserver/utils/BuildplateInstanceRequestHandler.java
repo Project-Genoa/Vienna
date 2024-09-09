@@ -675,46 +675,102 @@ public final class BuildplateInstanceRequestHandler
 	@Nullable
 	private InitialPlayerStateResponse handleGetInitialPlayerState(@NotNull String instanceId, @NotNull String playerId, long currentTime) throws DatabaseException
 	{
-		EarthDB.Results results = new EarthDB.Query(false)
-				.get("profile", playerId, Profile.class)
-				.get("boosts", playerId, Boosts.class)
-				.execute(this.earthDB);
-		Profile profile = (Profile) results.get("profile").value();
-		Boosts boosts = (Boosts) results.get("boosts").value();
-
-		record EffectInfo(
-				long endTime,
-				Catalog.ItemsCatalog.Item.BoostInfo.Effect effect
-		)
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
 		{
+			return null;
 		}
-		return new InitialPlayerStateResponse(
-				Math.min(profile.health, BoostUtils.getMaxPlayerHealth(boosts, currentTime, this.catalog.itemsCatalog)),
-				Arrays.stream(boosts.activeBoosts)
-						.filter(activeBoost -> activeBoost != null)
-						.filter(activeBoost -> activeBoost.startTime() + activeBoost.duration() >= currentTime)
-						.flatMap(activeBoost -> Arrays.stream(this.catalog.itemsCatalog.getItem(activeBoost.itemId()).boostInfo().effects()).map(effect -> new EffectInfo(activeBoost.startTime() + activeBoost.duration(), effect)))
-						.filter(effectInfo -> switch (effectInfo.effect.type())
-						{
-							case ADVENTURE_XP, DEFENSE, EATING, HEALTH, MINING_SPEED, STRENGTH -> true;
-							default -> false;
-						})
-						.map(effectInfo -> new InitialPlayerStateResponse.BoostStatusEffect(
-								switch (effectInfo.effect.type())
-								{
-									case ADVENTURE_XP -> InitialPlayerStateResponse.BoostStatusEffect.Type.ADVENTURE_XP;
-									case DEFENSE -> InitialPlayerStateResponse.BoostStatusEffect.Type.DEFENSE;
-									case EATING -> InitialPlayerStateResponse.BoostStatusEffect.Type.EATING;
-									case HEALTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.HEALTH;
-									case MINING_SPEED -> InitialPlayerStateResponse.BoostStatusEffect.Type.MINING_SPEED;
-									case STRENGTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.STRENGTH;
-									default -> throw new AssertionError();
-								},
-								effectInfo.effect.value(),
-								effectInfo.endTime - currentTime
-						))
-						.toArray(InitialPlayerStateResponse.BoostStatusEffect[]::new)
-		);
+
+		boolean useHealth;
+		boolean useBoosts;
+		switch (instanceInfo.type())
+		{
+			case BUILD ->
+			{
+				useHealth = false;
+				useBoosts = false;
+			}
+			case PLAY ->
+			{
+				useHealth = false;
+				useBoosts = true;
+			}
+			case SHARED_BUILD ->
+			{
+				useHealth = false;
+				useBoosts = false;
+			}
+			case SHARED_PLAY ->
+			{
+				useHealth = false;
+				useBoosts = true;
+			}
+			case ENCOUNTER ->
+			{
+				useHealth = true;
+				useBoosts = true;
+			}
+			default ->
+			{
+				useHealth = false;
+				useBoosts = false;
+			}
+		}
+
+		if (!useHealth && !useBoosts)
+		{
+			return new InitialPlayerStateResponse(20.0f, new InitialPlayerStateResponse.BoostStatusEffect[0]);
+		}
+		else
+		{
+			if (!useBoosts)
+			{
+				throw new AssertionError();
+			}
+
+			EarthDB.Results results = new EarthDB.Query(false)
+					.get("profile", playerId, Profile.class)
+					.get("boosts", playerId, Boosts.class)
+					.execute(this.earthDB);
+			Profile profile = (Profile) results.get("profile").value();
+			Boosts boosts = (Boosts) results.get("boosts").value();
+
+			float maxHealth = BoostUtils.getMaxPlayerHealth(boosts, currentTime, this.catalog.itemsCatalog);
+
+			record EffectInfo(
+					long endTime,
+					Catalog.ItemsCatalog.Item.BoostInfo.Effect effect
+			)
+			{
+			}
+			return new InitialPlayerStateResponse(
+					useHealth ? Math.min(profile.health, maxHealth) : maxHealth,
+					Arrays.stream(boosts.activeBoosts)
+							.filter(activeBoost -> activeBoost != null)
+							.filter(activeBoost -> activeBoost.startTime() + activeBoost.duration() >= currentTime)
+							.flatMap(activeBoost -> Arrays.stream(this.catalog.itemsCatalog.getItem(activeBoost.itemId()).boostInfo().effects()).map(effect -> new EffectInfo(activeBoost.startTime() + activeBoost.duration(), effect)))
+							.filter(effectInfo -> switch (effectInfo.effect.type())
+							{
+								case ADVENTURE_XP, DEFENSE, EATING, HEALTH, MINING_SPEED, STRENGTH -> true;
+								default -> false;
+							})
+							.map(effectInfo -> new InitialPlayerStateResponse.BoostStatusEffect(
+									switch (effectInfo.effect.type())
+									{
+										case ADVENTURE_XP -> InitialPlayerStateResponse.BoostStatusEffect.Type.ADVENTURE_XP;
+										case DEFENSE -> InitialPlayerStateResponse.BoostStatusEffect.Type.DEFENSE;
+										case EATING -> InitialPlayerStateResponse.BoostStatusEffect.Type.EATING;
+										case HEALTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.HEALTH;
+										case MINING_SPEED -> InitialPlayerStateResponse.BoostStatusEffect.Type.MINING_SPEED;
+										case STRENGTH -> InitialPlayerStateResponse.BoostStatusEffect.Type.STRENGTH;
+										default -> throw new AssertionError();
+									},
+									effectInfo.effect.value(),
+									effectInfo.endTime - currentTime
+							))
+							.toArray(InitialPlayerStateResponse.BoostStatusEffect[]::new)
+			);
+		}
 	}
 
 	@Nullable

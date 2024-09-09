@@ -501,7 +501,6 @@ public class Instance
 			}
 			case "getInitialPlayerState" ->
 			{
-				// TODO: should we always return full health/no boosts for "creative" mode?
 				String playerId = this.readJson(request.data, String.class);
 				if (playerId != null)
 				{
