@@ -131,6 +131,16 @@ public final class BuildplateInstanceRequestHandler
 							PlayerDisconnectedResponse playerDisconnectedResponse = BuildplateInstanceRequestHandler.this.handlePlayerDisconnected(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp);
 							return playerDisconnectedResponse != null ? gson.toJson(playerDisconnectedResponse) : null;
 						}
+						case "playerDead" ->
+						{
+							RequestWithInstanceId<String> requestWithInstanceId = readRequest(request.data, String.class);
+							if (requestWithInstanceId == null)
+							{
+								return null;
+							}
+							Boolean respawn = BuildplateInstanceRequestHandler.this.handlePlayerDead(requestWithInstanceId.instanceId, requestWithInstanceId.request, request.timestamp);
+							return respawn != null ? gson.toJson(respawn) : null;
+						}
 						case "getInitialPlayerState" ->
 						{
 							RequestWithInstanceId<String> requestWithInstanceId = readRequest(request.data, String.class);
@@ -670,6 +680,25 @@ public final class BuildplateInstanceRequestHandler
 		}
 
 		return new PlayerDisconnectedResponse();
+	}
+
+	@Nullable
+	private Boolean handlePlayerDead(@NotNull String instanceId, @NotNull String playerId, long currentTime) throws DatabaseException
+	{
+		BuildplateInstancesManager.InstanceInfo instanceInfo = this.buildplateInstancesManager.getInstanceInfo(instanceId);
+		if (instanceInfo == null)
+		{
+			return null;
+		}
+
+		return switch (instanceInfo.type())
+		{
+			case BUILD -> true;
+			case PLAY -> false;
+			case SHARED_BUILD -> true;
+			case SHARED_PLAY -> false;
+			case ENCOUNTER -> false;
+		};
 	}
 
 	@Nullable

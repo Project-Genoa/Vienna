@@ -454,6 +454,18 @@ public class Instance
 					}
 				}
 			}
+			case "playerDead" ->
+			{
+				String playerId = this.readJson(request.data, String.class);
+				if (playerId != null)
+				{
+					Boolean respawn = this.sendEventBusRequest("playerDead", playerId, Boolean.class).join();
+					if (respawn != null)
+					{
+						return respawn;
+					}
+				}
+			}
 			case "getInventory" ->
 			{
 				String playerId = this.readJson(request.data, String.class);

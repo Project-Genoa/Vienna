@@ -107,6 +107,13 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 	}
 
 	@Override
+	public boolean onPlayerDead(@NotNull String playerId) throws ConnectorPluginException
+	{
+		boolean respawn = EventBusHelper.doRequestResponseSync(this.requestSender, this.queueName, "playerDead", playerId, Boolean.class);
+		return respawn;
+	}
+
+	@Override
 	@NotNull
 	public Inventory onPlayerGetInventory(@NotNull String playerId) throws ConnectorPluginException
 	{
