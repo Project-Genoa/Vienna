@@ -340,7 +340,7 @@ public class BuildplatesRouter extends Router
 			String instanceId = request.getParameter("instanceId");
 
 			BuildplateInstancesManager.InstanceInfo instanceInfo = buildplateInstancesManager.getInstanceInfo(instanceId);
-			if (instanceInfo == null)
+			if (instanceInfo == null || instanceInfo.shuttingDown())
 			{
 				return Response.notFound();
 			}
@@ -354,7 +354,7 @@ public class BuildplatesRouter extends Router
 			do
 			{
 				instanceInfo1 = buildplateInstancesManager.getInstanceInfo(instanceId);
-				if (instanceInfo1 == null)
+				if (instanceInfo1 == null || instanceInfo1.shuttingDown())
 				{
 					return Response.notFound();
 				}

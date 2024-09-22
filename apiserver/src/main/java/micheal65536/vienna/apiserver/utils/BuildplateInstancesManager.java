@@ -82,7 +82,7 @@ public final class BuildplateInstancesManager
 				for (String instanceId : instanceIds)
 				{
 					InstanceInfo instanceInfo = this.instances.getOrDefault(instanceId, null);
-					if (instanceInfo != null)
+					if (instanceInfo != null && instanceInfo.shuttingDown == false)
 					{
 						if (
 								instanceInfo.type == type &&
@@ -180,6 +180,7 @@ public final class BuildplateInstancesManager
 								startNotification.buildplateId,
 								startNotification.address,
 								startNotification.port,
+								false,
 								false
 						));
 						this.instancesByBuildplateId.computeIfAbsent(startNotification.buildplateId, buildplateId -> new LinkedHashSet<>()).add(startNotification.instanceId);
@@ -216,6 +217,30 @@ public final class BuildplateInstancesManager
 								instanceInfo.buildplateId,
 								instanceInfo.address,
 								instanceInfo.port,
+								true,
+								instanceInfo.shuttingDown
+						));
+					}
+				}
+			}
+			case "shuttingDown" ->
+			{
+				String instanceId = event.data;
+				synchronized (this.instances)
+				{
+					InstanceInfo instanceInfo = this.instances.getOrDefault(instanceId, null);
+					if (instanceInfo != null)
+					{
+						LogManager.getLogger().info("Buildplate instance {} is shutting down", instanceId);
+						this.instances.put(instanceId, new InstanceInfo(
+								instanceInfo.type,
+								instanceInfo.instanceId,
+								instanceInfo.playerId,
+								instanceInfo.encounterId,
+								instanceInfo.buildplateId,
+								instanceInfo.address,
+								instanceInfo.port,
+								instanceInfo.ready,
 								true
 						));
 					}
@@ -293,7 +318,8 @@ public final class BuildplateInstancesManager
 			@NotNull String address,
 			int port,
 
-			boolean ready
+			boolean ready,
+			boolean shuttingDown
 	)
 	{
 	}

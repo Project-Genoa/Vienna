@@ -23,6 +23,7 @@ import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedRequest;
 import micheal65536.vienna.buildplate.connector.model.PlayerDisconnectedResponse;
 import micheal65536.vienna.buildplate.connector.model.WorldSavedMessage;
 import micheal65536.vienna.eventbus.client.EventBusClient;
+import micheal65536.vienna.eventbus.client.Publisher;
 import micheal65536.vienna.eventbus.client.RequestHandler;
 import micheal65536.vienna.eventbus.client.RequestSender;
 import micheal65536.vienna.eventbus.client.Subscriber;
@@ -41,10 +42,7 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Base64;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -101,9 +99,9 @@ public class Instance
 
 	private Thread thread;
 	private final Semaphore threadStartedSemaphore = new Semaphore(1, true);
-	private final CompletableFuture<Void> readyFuture = new CompletableFuture<>();
 	private final Logger logger;
 
+	private Publisher publisher = null;
 	private RequestSender requestSender = null;
 
 	private Subscriber subscriber = null;
@@ -177,6 +175,7 @@ public class Instance
 			}
 			this.logger.info("Using port {} internal port {}", this.port, this.serverInternalPort);
 
+			this.publisher = this.eventBusClient.addPublisher();
 			this.requestSender = this.eventBusClient.addRequestSender();
 
 			this.logger.info("Setting up server");
@@ -324,6 +323,11 @@ public class Instance
 			{
 				this.requestHandler.close();
 			}
+			if (this.publisher != null)
+			{
+				this.publisher.flush();
+				this.publisher.close();
+			}
 			if (this.requestSender != null)
 			{
 				this.requestSender.flush();
@@ -342,16 +346,16 @@ public class Instance
 		{
 			case "started" ->
 			{
-				Instance.this.logger.info("Server is ready");
-				Instance.this.startBridgeProcess();
-				Instance.this.readyFuture.complete(null);
-				if (Instance.this.shutdownTime != null)
+				this.logger.info("Server is ready");
+				this.startBridgeProcess();
+				this.sendEventBusInstanceStatusNotification("ready");
+				if (this.shutdownTime != null)
 				{
-					Instance.this.startShutdownTimer();
+					this.startShutdownTimer();
 				}
 				else
 				{
-					Instance.this.startHostPlayerConnectTimeout();
+					this.startHostPlayerConnectTimeout();
 				}
 			}
 			case "saved" ->
@@ -542,6 +546,18 @@ public class Instance
 		}
 	}
 
+	private void sendEventBusInstanceStatusNotification(@NotNull String status)
+	{
+		this.publisher.publish("buildplates", status, this.instanceId).thenAccept(success ->
+		{
+			if (!success)
+			{
+				this.logger.error("Event bus publisher error");
+				this.beginShutdown();
+			}
+		});
+	}
+
 	@NotNull
 	private <T> CompletableFuture<T> sendEventBusRequest(@NotNull String type, @NotNull Object object, @Nullable Class<T> responseClass)
 	{
@@ -551,35 +567,8 @@ public class Instance
 		)
 		{
 		}
-
 		RequestWithInstanceId request = new RequestWithInstanceId(this.instanceId, object);
-
-		try
-		{
-			return this.requestSender.request("buildplates", type, new Gson().newBuilder().serializeNulls().create().toJson(request)).thenApply(response ->
-			{
-				if (response == null)
-				{
-					this.logger.error("Event bus request failed (no response)");
-					this.beginShutdown();
-					return null;
-				}
-				if (responseClass != null)
-				{
-					return new Gson().fromJson(response, responseClass);
-				}
-				else
-				{
-					return null;
-				}
-			});
-		}
-		catch (Exception exception)
-		{
-			this.logger.error("Event bus request failed", exception);
-			this.beginShutdown();
-			return CompletableFuture.completedFuture(null);
-		}
+		return this.sendEventBusRequestRaw(type, request, responseClass);
 	}
 
 	@NotNull
@@ -1122,6 +1111,8 @@ public class Instance
 
 			this.logger.info("Beginning shutdown");
 
+			this.sendEventBusInstanceStatusNotification("shuttingDown");
+
 			if (this.bridgeProcess != null)
 			{
 				this.logger.info("Waiting for bridge to shut down");
@@ -1159,29 +1150,6 @@ public class Instance
 			}
 		}
 		return exitCode;
-	}
-
-	public void waitForReady()
-	{
-		for (; ; )
-		{
-			try
-			{
-				this.readyFuture.get(1000, TimeUnit.MILLISECONDS);
-				break;
-			}
-			catch (InterruptedException | ExecutionException exception)
-			{
-				continue;
-			}
-			catch (TimeoutException exception)
-			{
-				if (!this.thread.isAlive())
-				{
-					break;
-				}
-			}
-		}
 	}
 
 	public void waitForShutdown()

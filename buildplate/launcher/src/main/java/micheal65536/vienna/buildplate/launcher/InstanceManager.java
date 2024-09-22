@@ -161,7 +161,7 @@ public class InstanceManager
 						LogManager.getLogger().error("Error starting buildplate instance {}", instanceId);
 						return null;
 					}
-					InstanceManager.this.sendEventBusMessageJson("started", new StartNotification(
+					InstanceManager.this.sendEventBusMessage("started", new Gson().newBuilder().serializeNulls().create().toJson(new StartNotification(
 							instanceId,
 							startRequest.playerId,
 							startRequest.encounterId,
@@ -169,14 +169,10 @@ public class InstanceManager
 							instance.publicAddress,
 							instance.port,
 							startRequest.type
-					));
+					)));
 
 					new Thread(() ->
 					{
-						instance.waitForReady();
-
-						InstanceManager.this.sendEventBusMessage("ready", instance.instanceId);
-
 						instance.waitForShutdown();
 
 						InstanceManager.this.sendEventBusMessage("stopped", instance.instanceId);
@@ -245,11 +241,6 @@ public class InstanceManager
 		});
 	}
 
-	private void sendEventBusMessageJson(@NotNull String type, Object messageObject)
-	{
-		this.sendEventBusMessage(type, new Gson().newBuilder().serializeNulls().create().toJson(messageObject));
-	}
-
 	public void shutdown()
 	{
 		this.requestHandler.close();
@@ -279,6 +270,7 @@ public class InstanceManager
 		}
 		this.lock.unlock();
 
+		this.publisher.flush();
 		this.publisher.close();
 	}
 }
