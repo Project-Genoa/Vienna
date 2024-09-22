@@ -93,7 +93,7 @@ public final class ViennaConnectorPlugin implements ConnectorPlugin
 
 	@Override
 	@NotNull
-	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId) throws ConnectorPluginException
+	public DisconnectResponse onPlayerDisconnected(@NotNull String playerId, float health) throws ConnectorPluginException
 	{
 		InventoryResponse backpackContents = switch (this.inventoryType)
 		{
