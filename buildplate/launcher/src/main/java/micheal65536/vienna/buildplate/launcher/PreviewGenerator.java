@@ -5,8 +5,11 @@ import org.apache.logging.log4j.LogManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.HashMap;
@@ -26,23 +29,46 @@ public final class PreviewGenerator
 	public String generatePreview(byte[] serverData, boolean isNight)
 	{
 		byte[] previewBytes;
+		int exitCode;
 		try
 		{
 			Process process = new ProcessBuilder()
 					.command(this.javaCmd, "-cp", this.fountainJar.getAbsolutePath(), "micheal65536.fountain.preview.PreviewGenerator")
 					.redirectInput(ProcessBuilder.Redirect.PIPE)
 					.redirectOutput(ProcessBuilder.Redirect.PIPE)
-					.redirectError(ProcessBuilder.Redirect.DISCARD)
+					.redirectError(ProcessBuilder.Redirect.PIPE)
 					.start();
 			LogManager.getLogger().debug("Started preview generator subprocess with PID {}", process.pid());
+			new Thread(() ->
+			{
+				try
+				{
+					InputStream inputStream = process.getErrorStream();
+					InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+					BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+					String line;
+					while ((line = bufferedReader.readLine()) != null)
+					{
+						LogManager.getLogger().debug("[preview generator] %s".formatted(line));
+					}
+				}
+				catch (IOException exception)
+				{
+					// empty
+				}
+			}).start();
 			process.getOutputStream().write(serverData);
 			process.getOutputStream().flush();
 			previewBytes = process.getInputStream().readAllBytes();
+			byte[] errorBytes = process.getErrorStream().readAllBytes();
+			if (errorBytes.length != 0)
+			{
+				LogManager.getLogger().debug("[preview generator] {}", new String(errorBytes, StandardCharsets.UTF_8));
+			}
 			if (process.isAlive())
 			{
 				LogManager.getLogger().warn("Preview generator subprocess is still running, waiting for it to exit");
 			}
-			int exitCode;
 			for (; ; )
 			{
 				try
@@ -60,6 +86,10 @@ public final class PreviewGenerator
 		catch (IOException exception)
 		{
 			LogManager.getLogger().error("Error while running buildplate preview generator subprocess", exception);
+			return null;
+		}
+		if (exitCode != 0 || previewBytes.length == 0)
+		{
 			return null;
 		}
 
